@@ -3,19 +3,27 @@ Auto-label utility: converts file-level positive/negative labels into
 fine-grained time-span labels using the existing model's segment predictions.
 
 For positive files:
-    Run inference → find contiguous regions where confidence >= threshold →
-    merge adjacent high-confidence segments into labeled spans.
+    Run inference → compute a dynamic confidence threshold via Otsu's histogram
+    method → find contiguous regions above that threshold → merge adjacent
+    high-confidence segments into labeled spans.
 
 For negative files:
     Single row spanning the entire file duration, labeled 0.
 
+The dynamic threshold is computed per-file from the distribution of segment
+confidence scores using Otsu's method, which maximises the between-class
+variance of a binary "low confidence / high confidence" split.  A mandatory
+minimum threshold (``--min-threshold``, default 0.1) acts as a safety floor
+so that near-zero confidence segments are never accepted regardless of the
+file's distribution.
+
 Output: CSV with columns [file, start_s, end_s, label, confidence]
 
 Usage:
-    python -m model_v1.finetuning.auto_label \
-        --data-dir ./data \
-        --config ./model/config.yaml \
-        --threshold 0.5 \
+    python -m model_v1.finetuning.auto_label \\
+        --data-dir ./data \\
+        --config ./model/config.yaml \\
+        --min-threshold 0.1 \\
         --output labels.csv
 """
 
@@ -25,6 +33,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 
+import numpy as np
 import yaml
 
 from ..inference import OrcaHelloSRKWDetectorV1
@@ -32,6 +41,91 @@ from ..types import DetectionResult, SegmentPrediction
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Dynamic threshold via Otsu's method
+# ---------------------------------------------------------------------------
+
+def _otsu_threshold(confidences: List[float], n_bins: int = 50) -> float:
+    """
+    Compute the optimal binary threshold for a list of confidence scores using
+    Otsu's method (maximise between-class variance).
+
+    Args:
+        confidences: List of confidence values in [0, 1].
+        n_bins: Number of histogram bins over [0, 1].
+
+    Returns:
+        Threshold value in [0, 1].  Returns 0.0 if the list is empty or
+        all values are identical (caller should then apply the min threshold).
+    """
+    if len(confidences) < 2:
+        return 0.0
+
+    counts, bin_edges = np.histogram(confidences, bins=n_bins, range=(0.0, 1.0))
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
+    total = counts.sum()
+    if total == 0:
+        return 0.0
+
+    best_thresh = 0.0
+    best_variance = -1.0
+
+    cumulative_count = 0
+    cumulative_sum = 0.0
+
+    total_mean = float((counts * bin_centers).sum()) / total
+
+    for i in range(1, n_bins):
+        cumulative_count += counts[i - 1]
+        cumulative_sum += counts[i - 1] * bin_centers[i - 1]
+
+        w0 = cumulative_count / total
+        w1 = 1.0 - w0
+        if w0 == 0.0 or w1 == 0.0:
+            continue
+
+        mu0 = cumulative_sum / cumulative_count
+        mu1 = (total_mean * total - cumulative_sum) / (total - cumulative_count)
+
+        variance = w0 * w1 * (mu0 - mu1) ** 2
+        if variance > best_variance:
+            best_variance = variance
+            best_thresh = float(bin_edges[i])  # use the left edge of the upper bin
+
+    return best_thresh
+
+
+def compute_dynamic_threshold(
+    confidences: List[float],
+    min_threshold: float,
+    n_bins: int = 50,
+) -> float:
+    """
+    Return a per-file confidence threshold derived from the confidence score
+    distribution via Otsu's histogram method, floored at ``min_threshold``.
+
+    Args:
+        confidences: All segment confidence scores for one file.
+        min_threshold: Hard lower bound – the returned threshold will be at
+                       least this value regardless of the histogram result.
+        n_bins: Number of bins used when building the histogram.
+
+    Returns:
+        Effective threshold for this file.
+    """
+    otsu = _otsu_threshold(confidences, n_bins=n_bins)
+    effective = max(otsu, min_threshold)
+    logger.debug(
+        "Dynamic threshold: otsu=%.4f  min=%.4f  effective=%.4f",
+        otsu, min_threshold, effective,
+    )
+    return effective
+
+
+# ---------------------------------------------------------------------------
+# Span merging
+# ---------------------------------------------------------------------------
 
 def _merge_contiguous_spans(
     segments: List[SegmentPrediction],
@@ -107,24 +201,34 @@ def _finalize_span(span: dict, label: int) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 def auto_label_file(
     model: OrcaHelloSRKWDetectorV1,
     wav_path: str,
     file_label: int,
     config: Dict,
-    threshold: float = 0.5,
+    min_threshold: float = 0.1,
     gap_tolerance_s: float = 1.0,
+    n_bins: int = 50,
 ) -> List[dict]:
     """
     Generate fine-grained time-span labels for a single file.
+
+    For positive files the confidence threshold is determined dynamically per
+    file using Otsu's histogram method on the segment confidence distribution,
+    floored at ``min_threshold``.
 
     Args:
         model: Pretrained OrcaHelloSRKWDetectorV1.
         wav_path: Path to WAV file.
         file_label: 1 (positive) or 0 (negative) — the file-level label.
         config: Inference config dict.
-        threshold: Confidence threshold for positive spans.
+        min_threshold: Hard lower bound on the dynamic threshold (safety floor).
         gap_tolerance_s: Max gap between segments to merge into one span.
+        n_bins: Histogram bin count for Otsu thresholding.
 
     Returns:
         List of dicts with keys: file, start_s, end_s, label, confidence.
@@ -142,7 +246,17 @@ def auto_label_file(
             "confidence": round(1.0 - result.global_confidence, 4),
         }]
 
-    # Positive file: find contiguous high-confidence regions
+    # Positive file: compute a dynamic threshold then find contiguous regions
+    all_confidences = [s.confidence for s in result.segment_predictions]
+    threshold = compute_dynamic_threshold(all_confidences, min_threshold, n_bins)
+    logger.info(
+        "%s: dynamic threshold=%.4f (min=%.4f, otsu=%.4f)",
+        filename,
+        threshold,
+        min_threshold,
+        _otsu_threshold(all_confidences, n_bins),
+    )
+
     spans = _merge_contiguous_spans(
         result.segment_predictions, threshold, gap_tolerance_s
     )
@@ -151,9 +265,11 @@ def auto_label_file(
         # Model didn't find any confident regions despite file-level positive label.
         # Log a warning — this file may need manual review.
         logger.warning(
-            f"{filename}: file labeled positive but no segments above "
-            f"threshold {threshold} (max conf: "
-            f"{max(s.confidence for s in result.segment_predictions):.3f})"
+            "%s: file labeled positive but no segments above dynamic threshold "
+            "%.4f (max conf: %.3f)",
+            filename,
+            threshold,
+            max(all_confidences) if all_confidences else 0.0,
         )
         return []
 
@@ -167,8 +283,9 @@ def auto_label_directory(
     model: OrcaHelloSRKWDetectorV1,
     data_dir: str,
     config: Dict,
-    threshold: float = 0.5,
+    min_threshold: float = 0.1,
     gap_tolerance_s: float = 1.0,
+    n_bins: int = 50,
 ) -> List[dict]:
     """
     Generate fine-grained labels for all files in a positive/negative directory.
@@ -177,8 +294,9 @@ def auto_label_directory(
         model: Pretrained model.
         data_dir: Root with positive/ and negative/ subdirectories.
         config: Inference config dict.
-        threshold: Confidence threshold.
+        min_threshold: Safety floor for the dynamic per-file threshold.
         gap_tolerance_s: Max gap for merging spans.
+        n_bins: Histogram bin count for Otsu thresholding.
 
     Returns:
         List of label dicts (file, start_s, end_s, label, confidence).
@@ -197,7 +315,7 @@ def auto_label_directory(
         for wav_path in wav_files:
             rows = auto_label_file(
                 model, str(wav_path), file_label, config,
-                threshold, gap_tolerance_s,
+                min_threshold, gap_tolerance_s, n_bins,
             )
             all_rows.extend(rows)
 
@@ -217,7 +335,9 @@ def write_csv(rows: List[dict], output_path: str) -> None:
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Auto-label audio files with fine-grained time spans "
-                    "using the existing model's segment predictions."
+                    "using the existing model's segment predictions. "
+                    "The confidence threshold is computed dynamically per file "
+                    "via Otsu's histogram method."
     )
     parser.add_argument(
         "--data-dir", required=True,
@@ -236,8 +356,14 @@ def main(argv=None):
     )
 
     parser.add_argument(
-        "--threshold", type=float, default=0.5,
-        help="Confidence threshold for positive segments (default: 0.5)",
+        "--min-threshold", type=float, default=0.1,
+        help="Safety floor for the dynamic per-file confidence threshold. "
+             "The actual threshold is determined by Otsu's histogram method "
+             "but will never fall below this value. (default: 0.1)",
+    )
+    parser.add_argument(
+        "--n-bins", type=int, default=50,
+        help="Number of histogram bins used by Otsu's method (default: 50)",
     )
     parser.add_argument(
         "--gap-tolerance", type=float, default=1.0,
@@ -268,8 +394,9 @@ def main(argv=None):
     # Run auto-labeling
     rows = auto_label_directory(
         model, args.data_dir, config,
-        threshold=args.threshold,
+        min_threshold=args.min_threshold,
         gap_tolerance_s=args.gap_tolerance,
+        n_bins=args.n_bins,
     )
 
     # Write output
