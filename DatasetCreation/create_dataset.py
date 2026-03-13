@@ -1,6 +1,7 @@
 """Create a curated evaluation dataset by bias-sampling hard examples from the detection logbook."""
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -24,10 +25,10 @@ def expand_months(raw: list[str]) -> list[str]:
     return months
 
 BASE_DIR = Path(__file__).parent
-DETECTIONS_CSV = BASE_DIR / "combined_logbook" / "detections" / "all_detections.csv"
-HOURLY_CSV = BASE_DIR / "combined_logbook" / "hourly_events" / "all_hourly_events.csv"
+DEFAULT_LOGBOOK_DIR = BASE_DIR / "combined_logbook"
+DEFAULT_CACHE_DIR = BASE_DIR / "fetch_cache" / "orcahello"
 INFERENCE_DIR = BASE_DIR / "inference_results"
-OUTPUT_DIR = BASE_DIR / "agent-workspace" / "outputs"
+OUTPUT_DIR = BASE_DIR / "datasets"
 
 LINK_TEMPLATE = "https://aifororcas.azurewebsites.net/detections/detection/{detection_id}"
 
@@ -35,9 +36,11 @@ LINK_TEMPLATE = "https://aifororcas.azurewebsites.net/detections/detection/{dete
 UUID_RE = re.compile(r"--([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.\w+$")
 
 
-def load_data(source: str, months: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_data(source: str, months: list[str], logbook_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load detections and hourly events, filtered to source+months (all locations)."""
-    det_df = pd.read_csv(DETECTIONS_CSV, dtype=str)
+    detections_csv = logbook_dir / "detections" / "all_detections.csv"
+    hourly_csv = logbook_dir / "hourly_events" / "all_hourly_events.csv"
+    det_df = pd.read_csv(detections_csv, dtype=str)
     det_df = det_df[
         (det_df["source"] == source)
         & (det_df["year_month_pacific"].isin(months))
@@ -45,7 +48,7 @@ def load_data(source: str, months: list[str]) -> tuple[pd.DataFrame, pd.DataFram
     det_df["binary_label"] = (det_df["srkw_positive"] == "true").astype(int)
     det_df["meta_orcahello_confidence"] = pd.to_numeric(det_df["meta_orcahello_confidence"], errors="coerce") / 100.0
 
-    hourly = pd.read_csv(HOURLY_CSV, dtype=str)
+    hourly = pd.read_csv(hourly_csv, dtype=str)
     hourly = hourly[
         (hourly["source"] == source)
         & (hourly["year_month_pacific"].isin(months))
@@ -89,6 +92,35 @@ def join_hourly_info(det_df: pd.DataFrame, hourly: pd.DataFrame) -> pd.DataFrame
         how="left",
     )
     return det_df
+
+
+def load_uris_from_cache(months: list[str], cache_dir: Path) -> pd.DataFrame:
+    """Load audioUri and spectrogramUri from raw_detections.json for each month.
+
+    # TODO: eliminate this cache dependency by deriving URIs from blob path schema
+    #   once the naming convention is documented / stabilised.
+    #   Audio URIs follow the pattern:
+    #     https://livemlaudiospecstorage.blob.core.windows.net/audiowavs/<stem>.wav
+    #   where <stem> encodes location + recording timestamp (e.g. rpi_north_sjc_2025_07_01_13_53_18_PDT)
+    #   which cannot be reliably reconstructed from timestamp_pacific alone.
+    """
+    rows = []
+    for month in months:
+        cache_file = cache_dir / month / "raw_detections.json"
+        if not cache_file.exists():
+            print(f"  Warning: no cache file for {month}: {cache_file}")
+            continue
+        with open(cache_file) as f:
+            detections = json.load(f)
+        for d in detections:
+            rows.append({
+                "detection_id": d.get("id"),
+                "audio_uri": d.get("audioUri", ""),
+                "spectrogram_uri": d.get("spectrogramUri", ""),
+            })
+    if not rows:
+        return pd.DataFrame(columns=["detection_id", "audio_uri", "spectrogram_uri"])
+    return pd.DataFrame(rows)
 
 
 def load_inference_confidences(months: list[str], inference_version: str) -> pd.DataFrame:
@@ -196,11 +228,42 @@ def bias_sample(
     return pd.concat([sampled_pos, sampled_neg])
 
 
+def format_complete(det_df: pd.DataFrame) -> pd.DataFrame:
+    """Select and rename columns for complete (pre-sampling) output."""
+    df = det_df.copy()
+    df["confidence_detector_v0"] = df["meta_orcahello_confidence"]
+    df["link"] = df["detection_id"].apply(lambda d: LINK_TEMPLATE.format(detection_id=d))
+
+    output_cols = [
+        "location_slug",
+        "year_month_pacific",
+        "date_hour_pacific",
+        "timestamp_pacific",
+        "detection_id",
+        "binary_label",
+        "comments",
+        "confidence_detector_v0",
+        "confidence_detector_v1",
+        "audio_uri",
+        "spectrogram_uri",
+        "link",
+    ]
+    # audio_uri / spectrogram_uri may be absent if cache unavailable — fill with empty string
+    for col in ("audio_uri", "spectrogram_uri"):
+        if col not in df.columns:
+            df[col] = ""
+    return df[output_cols].sort_values(["year_month_pacific", "date_hour_pacific", "timestamp_pacific"])
+
+
 def format_output(df: pd.DataFrame) -> pd.DataFrame:
-    """Select and rename columns for final output."""
+    """Select and rename columns for final sampled output (same schema as complete, plus example_type)."""
     df = df.copy()
     df["confidence_detector_v0"] = df["meta_orcahello_confidence"]
     df["link"] = df["detection_id"].apply(lambda d: LINK_TEMPLATE.format(detection_id=d))
+
+    for col in ("audio_uri", "spectrogram_uri"):
+        if col not in df.columns:
+            df[col] = ""
 
     output_cols = [
         "location_slug",
@@ -213,6 +276,8 @@ def format_output(df: pd.DataFrame) -> pd.DataFrame:
         "comments",
         "confidence_detector_v0",
         "confidence_detector_v1",
+        "audio_uri",
+        "spectrogram_uri",
         "link",
     ]
     return df[output_cols].sort_values(["year_month_pacific", "date_hour_pacific", "timestamp_pacific"])
@@ -226,8 +291,51 @@ def print_summary(sampled_df: pd.DataFrame):
         print(f"  label={row['binary_label']} type={row['example_type']}: {row['count']}")
 
 
+def build_complete_df(args, months: list[str]) -> pd.DataFrame:
+    """Load data and build the complete (pre-sampling) dataframe."""
+    print(f"Loading detections for source={args.source}, months={months}")
+    det_df, hourly = load_data(args.source, months, args.logbook_dir)
+    print(f"  {len(det_df)} total detections, {len(hourly)} hourly events")
+    print_location_summary(det_df, hourly)
+
+    if args.location != "all":
+        print(f"Filtering to location={args.location}")
+        det_df = det_df[det_df["location_slug"] == args.location].copy()
+        hourly = hourly[hourly["location_slug"] == args.location].copy()
+    else:
+        print("Using all locations")
+    print(f"  {len(det_df)} detections, {len(hourly)} hourly events")
+    if det_df.empty:
+        return det_df
+
+    det_df = join_hourly_info(det_df, hourly)
+
+    if args.inference_version:
+        print(f"Loading inference results ({args.inference_version})...")
+        inf_df = load_inference_confidences(months, args.inference_version)
+        print(f"  {len(inf_df)} inference results found")
+        det_df = det_df.merge(inf_df, on="detection_id", how="left")
+    else:
+        print("No inference version specified, using confidence_detector_v0 for sampling")
+        det_df["confidence_detector_v1"] = det_df["meta_orcahello_confidence"]
+
+    # Join audio/spectrogram URIs from raw cache
+    print(f"Loading URIs from cache ({args.cache_dir})...")
+    uri_df = load_uris_from_cache(months, args.cache_dir)
+    print(f"  {len(uri_df)} URIs loaded")
+    det_df = det_df.merge(uri_df, on="detection_id", how="left")
+
+    return det_df
+
+
 def main():
     parser = argparse.ArgumentParser(description="Create a curated evaluation dataset")
+    parser.add_argument("--logbook-dir", type=Path, default=DEFAULT_LOGBOOK_DIR,
+                        help=f"Path to combined_logbook directory (default: {DEFAULT_LOGBOOK_DIR})")
+    parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR,
+                        help=f"Path to OrcaHello raw detection cache (default: {DEFAULT_CACHE_DIR})")
+    parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR,
+                        help=f"Directory to write output CSV files (default: {OUTPUT_DIR})")
     parser.add_argument("--location", default="port-townsend", help="Location slug to filter")
     parser.add_argument("--months", nargs="+", default=["2025-11:2026-02"],
                         help="Year-month values or colon-separated ranges (e.g. 2025-11:2026-02)")
@@ -246,38 +354,35 @@ def main():
     args = parser.parse_args()
 
     months = expand_months(args.months)
+    months_suffix = "_".join(args.months).replace(":", "_")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 1: Load all data for source+months, print summary by location
-    print(f"Loading detections for source={args.source}, months={months}")
-    det_df, hourly = load_data(args.source, months)
-    print(f"  {len(det_df)} total detections, {len(hourly)} hourly events")
-    print_location_summary(det_df, hourly)
+    complete_path = args.output_dir / f"{months_suffix}--{args.location}--complete.csv"
+    sampled_path = args.output_dir / f"{months_suffix}--{args.location}--sampled.csv"
 
-    # Step 2: Filter to selected location and join hourly info
-    if args.location != "all":
-        print(f"Filtering to location={args.location}")
-        det_df = det_df[det_df["location_slug"] == args.location].copy()
-        hourly = hourly[hourly["location_slug"] == args.location].copy()
+    # Step 1: Load complete dataset (or use cached)
+    if complete_path.exists():
+        print(f"Loading cached complete dataset from {complete_path}")
+        det_df = pd.read_csv(complete_path, dtype=str)
+        # Restore numeric types needed for sampling
+        det_df["binary_label"] = pd.to_numeric(det_df["binary_label"])
+        det_df["meta_orcahello_confidence"] = pd.to_numeric(det_df["confidence_detector_v0"], errors="coerce")
+        det_df["confidence_detector_v1"] = pd.to_numeric(det_df["confidence_detector_v1"], errors="coerce")
+        # audio_uri / spectrogram_uri stay as str (already in CSV)
+        for col in ("audio_uri", "spectrogram_uri"):
+            if col not in det_df.columns:
+                det_df[col] = ""
+        print(f"  {len(det_df)} detections loaded from cache")
     else:
-        print("Using all locations")
-    print(f"  {len(det_df)} detections, {len(hourly)} hourly events")
-    if det_df.empty:
-        print("No detections found. Exiting.")
-        sys.exit(0)
+        det_df = build_complete_df(args, months)
+        if det_df.empty:
+            print("No detections found. Exiting.")
+            sys.exit(0)
+        complete_out = format_complete(det_df)
+        complete_out.to_csv(complete_path, index=False)
+        print(f"Wrote {len(complete_out)} rows to {complete_path}")
 
-    det_df = join_hourly_info(det_df, hourly)
-
-    # Step 3: Join inference confidences (or fall back to v0)
-    if args.inference_version:
-        print(f"Loading inference results ({args.inference_version})...")
-        inf_df = load_inference_confidences(months, args.inference_version)
-        print(f"  {len(inf_df)} inference results found")
-        det_df = det_df.merge(inf_df, on="detection_id", how="left")
-    else:
-        print("No inference version specified, using confidence_detector_v0 for sampling")
-        det_df["confidence_detector_v1"] = det_df["meta_orcahello_confidence"]
-
-    # Step 4: Bias-sample per location
+    # Step 2: Bias-sample per location
     print("Sampling...")
     sampled_parts = []
     for loc, loc_df in det_df.groupby("location_slug"):
@@ -294,13 +399,10 @@ def main():
         sampled_parts.append(loc_sampled)
     sampled = pd.concat(sampled_parts)
 
-    # Step 5: Format and write output
+    # Step 3: Format and write sampled output
     output = format_output(sampled)
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    months_suffix = "_".join(args.months).replace(":", "_")
-    output_path = OUTPUT_DIR / f"curated_dataset-{args.location}-{months_suffix}.csv"
-    output.to_csv(output_path, index=False)
-    print(f"\nWrote {len(output)} rows to {output_path}")
+    output.to_csv(sampled_path, index=False)
+    print(f"\nWrote {len(output)} rows to {sampled_path}")
 
     print_summary(sampled)
 

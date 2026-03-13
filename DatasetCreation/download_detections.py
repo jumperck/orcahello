@@ -1,26 +1,37 @@
 #!/usr/bin/env python3
 """Download detection WAV and spectrogram files from OrcaHello cache.
 
+Can operate in two modes:
+  1. Classic mode (--month / --from-month / --to-month): reads raw_detections.json from cache.
+  2. CSV mode (--input-csv): reads detection_ids from a complete-*.csv or sampled-*.csv file.
+
 Organizes downloads into subfolders by moderation status:
   - positive: reviewed=True and found='yes' (confirmed whale calls)
   - false_positive: reviewed=True and found='No'/'no' (not whales)
   - unmoderated: reviewed=False (pending review)
   - unknown: reviewed=True but found='don't know' or other
 
-Directory structure:
-  output_dir/
+Directory structure (CSV mode, output rooted at <csv-stem>/):
+  <csv-stem>/
     YYYY-MM/
       positive/
-        <detection_id>.flac
-        <detection_id>.png
+        <stem>--<id>.flac
+        <stem>--<id>.png
       false_positive/
         ...
       unmoderated/
         ...
       unknown/
         ...
-      ground_truth_labels.csv   # written after download (positive/false_positive .flac only)
-      summary.txt               # audio (.flac) file counts per subfolder
+    labels.csv       # all months combined (positive/false_positive audio files)
+    summary.txt      # breakdown by year-month and location
+
+Directory structure (classic mode, output rooted at --output-dir):
+  output_dir/
+    YYYY-MM/
+      positive/ false_positive/ unmoderated/ unknown/
+      ground_truth_labels.csv
+      summary.txt
 """
 
 import argparse
@@ -29,11 +40,13 @@ import io
 import json
 import logging
 import sys
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
+import pandas as pd
 import requests
 import soundfile as sf
 from requests.adapters import HTTPAdapter
@@ -108,10 +121,7 @@ def get_months_in_range(start_month: str, end_month: str) -> List[str]:
 
 
 def classify_detection(detection: dict) -> str:
-    """Classify detection into category based on moderation status.
-
-    Returns one of: 'positive', 'false_positive', 'unmoderated', 'unknown'
-    """
+    """Classify detection into category based on moderation status."""
     reviewed = detection.get("reviewed", False)
     found = detection.get("found", "").lower()
 
@@ -139,25 +149,60 @@ def load_detections(cache_dir: Path, month: str) -> List[dict]:
         return json.load(f)
 
 
+def load_detections_from_csv(csv_path: Path) -> Dict[str, List[dict]]:
+    """Load detection records from a complete-*.csv or sampled-*.csv produced by create_dataset.py.
+
+    Requires audio_uri and spectrogram_uri columns (present in both complete and sampled CSVs).
+    Returns a dict mapping year_month -> list of detection dicts compatible with download_detection().
+    """
+    df = pd.read_csv(csv_path, dtype=str)
+
+    required = {"detection_id", "year_month_pacific", "audio_uri", "spectrogram_uri", "binary_label"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"Input CSV is missing columns: {missing}. "
+            "Re-run create_dataset.py with --cache-dir to regenerate."
+        )
+
+    result: Dict[str, List[dict]] = {}
+    for month, group in df.groupby("year_month_pacific"):
+        dets = []
+        for _, row in group.iterrows():
+            # binary_label=1 → reviewed=True, found='yes' (positive)
+            # binary_label=0 → reviewed=True, found='no'  (false_positive)
+            binary = str(row.get("binary_label", "")).strip()
+            reviewed = binary in ("0", "1")
+            found = "yes" if binary == "1" else ("no" if binary == "0" else "")
+            audio_uri = row.get("audio_uri", "")
+            spec_uri = row.get("spectrogram_uri", "")
+            dets.append({
+                "id": row["detection_id"],
+                "audioUri": audio_uri if isinstance(audio_uri, str) else "",
+                "spectrogramUri": spec_uri if isinstance(spec_uri, str) else "",
+                "reviewed": reviewed,
+                "found": found,
+            })
+        result[month] = dets
+        logger.debug(f"{month}: {len(dets)} detections from CSV")
+
+    return result
+
+
 def download_wav_as_flac(
     session: requests.Session,
     url: str,
     output_path: Path,
     timeout: int = 30,
 ) -> bool:
-    """Download WAV from URL, convert to FLAC in memory, write to output_path.
-
-    Returns True on success, False on failure.
-    """
+    """Download WAV from URL, convert to FLAC in memory, write to output_path."""
     try:
         response = session.get(url, timeout=timeout)
         response.raise_for_status()
 
-        # Read WAV from response bytes into memory
         wav_bytes = io.BytesIO(response.content)
         data, samplerate = sf.read(wav_bytes)
 
-        # Write FLAC to disk
         output_path.parent.mkdir(parents=True, exist_ok=True)
         sf.write(output_path, data, samplerate, format="FLAC")
 
@@ -173,10 +218,7 @@ def download_png(
     output_path: Path,
     timeout: int = 30,
 ) -> bool:
-    """Download PNG from URL to output_path.
-
-    Returns True on success, False on failure.
-    """
+    """Download PNG from URL to output_path."""
     try:
         response = session.get(url, timeout=timeout)
         response.raise_for_status()
@@ -207,13 +249,11 @@ def download_detection(
     det_id = detection.get("id", "unknown")
     category = classify_detection(detection)
 
-    # Filter by category if specified
     if categories and category not in categories:
         return ("skipped", False)
 
     month_output = output_dir / month / category
 
-    # Prepare file paths
     audio_url = detection.get("audioUri", "")
     spec_url = detection.get("spectrogramUri", "")
 
@@ -229,10 +269,8 @@ def download_detection(
     if dry_run:
         return (f"[DRY RUN] {flac_name}", True)
 
-    # Create session for this thread
     session = create_http_session()
 
-    # Download WAV as FLAC
     if download_wav and audio_url:
         if flac_path.exists():
             logger.debug(f"Skipping existing: {flac_name}")
@@ -242,7 +280,6 @@ def download_detection(
             else:
                 return (f"Failed WAV: {flac_name}", False)
 
-    # Download spectrogram
     if download_spectrogram and spec_url:
         if png_path.exists():
             logger.debug(f"Skipping existing: {png_name}")
@@ -264,12 +301,13 @@ def process_month(
     categories: Optional[List[str]],
     workers: int,
     dry_run: bool,
+    detections_override: Optional[List[dict]] = None,
 ) -> Tuple[int, int, int]:
     """Process detections for a single month using batched parallel downloads.
 
     Returns (processed_count, downloaded_count, skipped_count)
     """
-    detections = load_detections(cache_dir, month)
+    detections = detections_override if detections_override is not None else load_detections(cache_dir, month)
     if not detections:
         return 0, 0, 0
 
@@ -277,9 +315,7 @@ def process_month(
     downloaded = 0
     skipped = 0
 
-    # Process in batches with threadpool
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        # Submit all detections
         futures = []
         for detection in detections:
             future = executor.submit(
@@ -294,7 +330,6 @@ def process_month(
             )
             futures.append(future)
 
-        # Collect results with progress bar
         for future in tqdm(as_completed(futures), total=len(futures), desc=month, unit="detection"):
             status, success = future.result()
             processed += 1
@@ -330,7 +365,7 @@ def write_ground_truth_csv(month_dir: Path) -> None:
 
 
 def write_summary_txt(month_dir: Path) -> None:
-    """Write summary.txt with audio file counts per subfolder (extension from AUDIO_EXT)."""
+    """Write summary.txt with audio file counts per subfolder."""
     ext = AUDIO_EXT.lower()
     counts: List[Tuple[str, int]] = []
     total = 0
@@ -348,10 +383,108 @@ def write_summary_txt(month_dir: Path) -> None:
     logger.info(f"Wrote summary to {outpath}")
 
 
+def write_labels_csv(output_dir: Path) -> None:
+    """Write labels.csv combining all months (positive/false_positive audio files only)."""
+    ext = AUDIO_EXT.lower()
+    label_folders = ("positive", "false_positive")
+    rows: List[Tuple[str, str, int, str]] = []  # (month, file_path, label_binary, label)
+
+    for month_dir in sorted(output_dir.iterdir()):
+        if not month_dir.is_dir() or not month_dir.name[:4].isdigit():
+            continue
+        month = month_dir.name
+        for folder in label_folders:
+            dirpath = month_dir / folder
+            if not dirpath.is_dir():
+                continue
+            label_binary = 1 if folder == "positive" else 0
+            for entry in sorted(dirpath.iterdir()):
+                if not entry.is_file() or entry.suffix.lower() != ext:
+                    continue
+                rel_path = f"{month}/{folder}/{entry.name}"
+                rows.append((month, rel_path, label_binary, folder))
+
+    outpath = output_dir / "labels.csv"
+    with open(outpath, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["year_month", "file_path", "label_binary", "label"])
+        w.writerows(rows)
+    logger.info(f"Wrote {len(rows)} rows to {outpath}")
+
+
+def write_combined_summary_txt(output_dir: Path, csv_path: Optional[Path] = None) -> None:
+    """Write summary.txt with audio counts by year-month and location.
+
+    Uses the detection CSV (if provided) to cross-reference location_slug.
+    Falls back to file counts per month/category if no CSV.
+    """
+    ext = AUDIO_EXT.lower()
+    lines = [f"Audio ({AUDIO_EXT}) counts by year-month and category", ""]
+
+    # Load location mapping from CSV if available
+    loc_by_id: Dict[str, str] = {}
+    if csv_path and csv_path.exists():
+        df = pd.read_csv(csv_path, dtype=str)
+        if "detection_id" in df.columns and "location_slug" in df.columns:
+            loc_by_id = dict(zip(df["detection_id"], df["location_slug"]))
+
+    # Collect month-level stats
+    total_all = 0
+    for month_dir in sorted(output_dir.iterdir()):
+        if not month_dir.is_dir() or not month_dir.name[:4].isdigit():
+            continue
+        month = month_dir.name
+        month_total = 0
+        month_lines = []
+        loc_counts: Dict[str, int] = defaultdict(int)
+
+        for subdir in sorted(month_dir.iterdir()):
+            if not subdir.is_dir() or subdir.name.startswith("."):
+                continue
+            files = [e for e in subdir.iterdir() if e.is_file() and e.suffix.lower() == ext]
+            n = len(files)
+            month_lines.append(f"  {subdir.name}: {n}")
+            month_total += n
+
+            # Map files to locations via detection_id in filename (stem--uuid.flac)
+            if loc_by_id:
+                for f in files:
+                    # Extract UUID: last part after '--'
+                    parts = f.stem.rsplit("--", 1)
+                    if len(parts) == 2:
+                        det_id = parts[1]
+                        loc = loc_by_id.get(det_id, "unknown")
+                        loc_counts[loc] += 1
+
+        lines.append(f"{month}: {month_total} total")
+        lines.extend(month_lines)
+        if loc_counts:
+            lines.append("  by location:")
+            for loc, cnt in sorted(loc_counts.items()):
+                lines.append(f"    {loc}: {cnt}")
+        lines.append("")
+        total_all += month_total
+
+    lines.append(f"Grand total: {total_all}")
+    outpath = output_dir / "summary.txt"
+    outpath.write_text("\n".join(lines) + "\n")
+    logger.info(f"Wrote combined summary to {outpath}")
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Download detection WAV and spectrogram files from OrcaHello cache"
+    )
+
+    # CSV input mode
+    parser.add_argument(
+        "--input-csv",
+        type=Path,
+        default=None,
+        help="Path to a complete-*.csv or sampled-*.csv from create_dataset.py. "
+             "When provided, downloads only the detections listed in the CSV. "
+             "Output is rooted at <csv-stem>/ in the same directory as the CSV.",
     )
 
     # Cache/output directories
@@ -364,11 +497,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help=f"Output directory for downloads (default: {DEFAULT_OUTPUT_DIR})",
+        default=None,
+        help=f"Output directory for downloads (default: {DEFAULT_OUTPUT_DIR} in classic mode, "
+             f"or <csv-stem>/ next to the input CSV in CSV mode)",
     )
 
-    # Month range selection
+    # Month range selection (classic mode only)
     parser.add_argument(
         "--month",
         type=str,
@@ -435,15 +569,88 @@ def main() -> int:
     setup_logging(args.verbose)
 
     logger.info("OrcaHello Detection Downloader")
-    logger.info(f"Cache directory: {args.cache_dir}")
-    logger.info(f"Output directory: {args.output_dir}")
 
-    # Validate cache directory
-    if not args.cache_dir.exists():
+    # In CSV mode the cache is not used; only validate it for classic mode
+    if not args.input_csv and not args.cache_dir.exists():
         logger.error(f"Cache directory does not exist: {args.cache_dir}")
         return 1
+    if not args.input_csv:
+        logger.info(f"Cache directory: {args.cache_dir}")
 
-    # Determine month range
+    download_wav = not args.no_wav
+    download_spectrogram = not args.no_spec
+    categories = args.category
+
+    if not download_wav and not download_spectrogram:
+        logger.error("Nothing to download: both --no-wav and --no-spec specified")
+        return 1
+
+    # -----------------------------------------------------------------------
+    # CSV mode
+    # -----------------------------------------------------------------------
+    if args.input_csv:
+        csv_path = args.input_csv.resolve()
+        if not csv_path.exists():
+            logger.error(f"Input CSV not found: {csv_path}")
+            return 1
+
+        # Output rooted at <csv-stem>/ next to the CSV (or --output-dir if given)
+        if args.output_dir:
+            output_dir = args.output_dir
+        else:
+            output_dir = csv_path.parent / csv_path.stem
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"CSV mode: {csv_path}")
+        logger.info(f"Output directory: {output_dir}")
+
+        # Load detection records directly from CSV (audio_uri/spectrogram_uri columns)
+        detections_by_month = load_detections_from_csv(csv_path)
+        months = sorted(detections_by_month.keys())
+        logger.info(f"Months in CSV: {months}")
+
+        total_processed = 0
+        total_downloaded = 0
+        total_skipped = 0
+
+        for month in months:
+            month_dets = detections_by_month[month]
+            logger.info(f"\n--- Processing {month} ({len(month_dets)} detections) ---")
+
+            processed, downloaded, skipped = process_month(
+                cache_dir=args.cache_dir,
+                output_dir=output_dir,
+                month=month,
+                download_wav=download_wav,
+                download_spectrogram=download_spectrogram,
+                categories=categories,
+                workers=args.workers,
+                dry_run=args.dry_run,
+                detections_override=month_dets,
+            )
+
+            logger.info(f"{month}: processed={processed}, downloaded={downloaded}, skipped={skipped}")
+            total_processed += processed
+            total_downloaded += downloaded
+            total_skipped += skipped
+
+        if not args.dry_run:
+            write_labels_csv(output_dir)
+            write_combined_summary_txt(output_dir, csv_path=csv_path)
+
+        logger.info(f"\n{'[DRY RUN] ' if args.dry_run else ''}Download complete!")
+        logger.info(f"  Total processed: {total_processed}")
+        logger.info(f"  Total downloaded: {total_downloaded}")
+        logger.info(f"  Total skipped (filtered): {total_skipped}")
+        logger.info(f"  Output directory: {output_dir}")
+        return 0
+
+    # -----------------------------------------------------------------------
+    # Classic mode
+    # -----------------------------------------------------------------------
+    output_dir = args.output_dir if args.output_dir else DEFAULT_OUTPUT_DIR
+    logger.info(f"Output directory: {output_dir}")
+
     if args.month:
         months = [args.month]
     elif args.from_month and args.to_month:
@@ -453,20 +660,9 @@ def main() -> int:
     elif args.to_month:
         months = [args.to_month]
     else:
-        # Default: last month
         months = [get_last_month()]
 
     logger.info(f"Months to process: {months}")
-
-    # Download options
-    download_wav = not args.no_wav
-    download_spectrogram = not args.no_spec
-    categories = args.category  # None means all
-
-    if not download_wav and not download_spectrogram:
-        logger.error("Nothing to download: both --no-wav and --no-spec specified")
-        return 1
-
     logger.info(f"Download WAV (as FLAC): {download_wav}")
     logger.info(f"Download spectrogram: {download_spectrogram}")
     if categories:
@@ -487,7 +683,7 @@ def main() -> int:
 
         processed, downloaded, skipped = process_month(
             cache_dir=args.cache_dir,
-            output_dir=args.output_dir,
+            output_dir=output_dir,
             month=month,
             download_wav=download_wav,
             download_spectrogram=download_spectrogram,
@@ -501,9 +697,8 @@ def main() -> int:
         total_downloaded += downloaded
         total_skipped += skipped
 
-        # Write ground_truth_labels.csv and summary.txt for this month (skip in dry run)
         if not args.dry_run:
-            month_dir = args.output_dir / month
+            month_dir = output_dir / month
             if month_dir.exists():
                 write_ground_truth_csv(month_dir)
                 write_summary_txt(month_dir)
@@ -512,7 +707,7 @@ def main() -> int:
     logger.info(f"  Total processed: {total_processed}")
     logger.info(f"  Total downloaded: {total_downloaded}")
     logger.info(f"  Total skipped (filtered): {total_skipped}")
-    logger.info(f"  Output directory: {args.output_dir}")
+    logger.info(f"  Output directory: {output_dir}")
 
     return 0
 
