@@ -142,12 +142,12 @@ def load_inference_confidences(months: list[str], inference_version: str) -> pd.
             category = row["file_path"].split("/")[0]
             rows.append({
                 "detection_id": detection_id,
-                "confidence_detector_v1": row["global_confidence"],
+                "global_confidence": row["global_confidence"],
                 "inference_category": category,
             })
 
     if not rows:
-        return pd.DataFrame(columns=["detection_id", "confidence_detector_v1", "inference_category"])
+        return pd.DataFrame(columns=["detection_id", "global_confidence", "inference_category"])
     return pd.DataFrame(rows)
 
 
@@ -189,7 +189,7 @@ def bias_sample(
 ) -> pd.DataFrame:
     """Bias-sample hard + uniform examples from detections with inference results."""
     prefix = f"  [{location}] " if location else "  "
-    has_inf = df.dropna(subset=["confidence_detector_v1"]).copy()
+    has_inf = df.dropna(subset=["global_confidence"]).copy()
     n_without = len(df) - len(has_inf)
 
     positives = has_inf[has_inf["binary_label"] == 1]
@@ -203,9 +203,9 @@ def bias_sample(
 
     # --- Positive sampling (cap at target_positives) ---
     hard_pos_pool = positives[
-        (positives["confidence_detector_v1"] < hard_pos_max_conf)
-        & (positives["confidence_detector_v1"] > hard_pos_min_conf)
-    ].sort_values("confidence_detector_v1")
+        (positives["global_confidence"] < hard_pos_max_conf)
+        & (positives["global_confidence"] > hard_pos_min_conf)
+    ].sort_values("global_confidence")
 
     target_pos = min(target_positives, len(positives))
     sampled_pos = _sample_label(positives, hard_pos_pool, target_pos,
@@ -213,8 +213,8 @@ def bias_sample(
 
     # --- Negative sampling (cap at ratio * actual positives sampled) ---
     hard_neg_pool = negatives[
-        negatives["confidence_detector_v1"] > hard_neg_min_conf
-    ].sort_values("confidence_detector_v1", ascending=False)
+        negatives["global_confidence"] > hard_neg_min_conf
+    ].sort_values("global_confidence", ascending=False)
 
     # If positives are scarce (< half target), use target-based negative count
     # so we still get good negative coverage for evaluation
@@ -231,8 +231,9 @@ def bias_sample(
 def format_complete(det_df: pd.DataFrame) -> pd.DataFrame:
     """Select and rename columns for complete (pre-sampling) output."""
     df = det_df.copy()
-    df["confidence_detector_v0"] = df["meta_orcahello_confidence"]
-    df["link"] = df["detection_id"].apply(lambda d: LINK_TEMPLATE.format(detection_id=d))
+    df["detection_link"] = df["detection_id"].apply(lambda d: LINK_TEMPLATE.format(detection_id=d))
+    # Fill any remaining NaN in global_confidence with v0 score
+    df["global_confidence"] = df["global_confidence"].fillna(df["meta_orcahello_confidence"])
 
     output_cols = [
         "location_slug",
@@ -240,13 +241,12 @@ def format_complete(det_df: pd.DataFrame) -> pd.DataFrame:
         "date_hour_pacific",
         "timestamp_pacific",
         "detection_id",
+        "detection_link",
         "binary_label",
+        "global_confidence",
         "comments",
-        "confidence_detector_v0",
-        "confidence_detector_v1",
         "audio_uri",
         "spectrogram_uri",
-        "link",
     ]
     # audio_uri / spectrogram_uri may be absent if cache unavailable — fill with empty string
     for col in ("audio_uri", "spectrogram_uri"):
@@ -258,8 +258,9 @@ def format_complete(det_df: pd.DataFrame) -> pd.DataFrame:
 def format_output(df: pd.DataFrame) -> pd.DataFrame:
     """Select and rename columns for final sampled output (same schema as complete, plus example_type)."""
     df = df.copy()
-    df["confidence_detector_v0"] = df["meta_orcahello_confidence"]
-    df["link"] = df["detection_id"].apply(lambda d: LINK_TEMPLATE.format(detection_id=d))
+    df["detection_link"] = df["detection_id"].apply(lambda d: LINK_TEMPLATE.format(detection_id=d))
+    # Fill any remaining NaN in global_confidence with v0 score
+    df["global_confidence"] = df["global_confidence"].fillna(df["meta_orcahello_confidence"])
 
     for col in ("audio_uri", "spectrogram_uri"):
         if col not in df.columns:
@@ -271,14 +272,13 @@ def format_output(df: pd.DataFrame) -> pd.DataFrame:
         "date_hour_pacific",
         "timestamp_pacific",
         "detection_id",
+        "detection_link",
         "binary_label",
+        "global_confidence",
         "example_type",
         "comments",
-        "confidence_detector_v0",
-        "confidence_detector_v1",
         "audio_uri",
         "spectrogram_uri",
-        "link",
     ]
     return df[output_cols].sort_values(["year_month_pacific", "date_hour_pacific", "timestamp_pacific"])
 
@@ -317,7 +317,7 @@ def build_complete_df(args, months: list[str]) -> pd.DataFrame:
         det_df = det_df.merge(inf_df, on="detection_id", how="left")
     else:
         print("No inference version specified, using confidence_detector_v0 for sampling")
-        det_df["confidence_detector_v1"] = det_df["meta_orcahello_confidence"]
+        det_df["global_confidence"] = det_df["meta_orcahello_confidence"]
 
     # Join audio/spectrogram URIs from raw cache
     print(f"Loading URIs from cache ({args.cache_dir})...")
@@ -366,12 +366,8 @@ def main():
         det_df = pd.read_csv(complete_path, dtype=str)
         # Restore numeric types needed for sampling
         det_df["binary_label"] = pd.to_numeric(det_df["binary_label"])
-        det_df["meta_orcahello_confidence"] = pd.to_numeric(det_df["confidence_detector_v0"], errors="coerce")
-        det_df["confidence_detector_v1"] = pd.to_numeric(det_df["confidence_detector_v1"], errors="coerce")
-        # audio_uri / spectrogram_uri stay as str (already in CSV)
-        for col in ("audio_uri", "spectrogram_uri"):
-            if col not in det_df.columns:
-                det_df[col] = ""
+        det_df["global_confidence"] = pd.to_numeric(det_df["global_confidence"], errors="coerce")
+        det_df["meta_orcahello_confidence"] = det_df["global_confidence"]
         print(f"  {len(det_df)} detections loaded from cache")
     else:
         det_df = build_complete_df(args, months)
