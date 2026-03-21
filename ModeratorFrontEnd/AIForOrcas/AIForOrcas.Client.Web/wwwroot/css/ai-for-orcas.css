@@ -65,9 +65,188 @@ label {
 }
 
 .comments {
-	color: #858796;
+	color: #6b7a8d;
 }
 
 .validation-message {
 	color: red !important;
+}
+
+/* ===================================================================
+ * Blues palette — derived from the matplotlib Blues spectrogram colormap
+ * Primary:    #1a5f8a   (dark blue — sidebar, buttons, links)
+ * Light blue: #c8dff0   (focus borders, hover hints)
+ * Gray:       #6b7a8d   (secondary text and icons)
+ * Background: #f4f8fc   (page/content-wrapper background)
+ * =================================================================== */
+
+/* Page background */
+#wrapper #content-wrapper {
+    background-color: #f4f8fc;
+}
+
+/* Links */
+a {
+    color: #1a5f8a;
+}
+a:hover {
+    color: #114260;
+}
+
+/* btn-link */
+.btn-link {
+    color: #1a5f8a;
+}
+.btn-link:hover {
+    color: #114260;
+}
+
+/* Primary buttons */
+.btn-primary {
+    color: #fff;
+    background-color: #1a5f8a;
+    border-color: #1a5f8a;
+}
+.btn-primary:hover {
+    color: #fff;
+    background-color: #155070;
+    border-color: #155070;
+}
+.btn-primary:focus,
+.btn-primary.focus {
+    color: #fff;
+    background-color: #155070;
+    border-color: #155070;
+    box-shadow: 0 0 0 0.2rem rgba(26, 95, 138, 0.5);
+}
+.btn-primary.disabled,
+.btn-primary:disabled {
+    color: #fff;
+    background-color: #1a5f8a;
+    border-color: #1a5f8a;
+}
+.btn-primary:not(:disabled):not(.disabled):active,
+.btn-primary:not(:disabled):not(.disabled).active,
+.show > .btn-primary.dropdown-toggle {
+    color: #fff;
+    background-color: #114260;
+    border-color: #114260;
+}
+.btn-primary:not(:disabled):not(.disabled):active:focus,
+.btn-primary:not(:disabled):not(.disabled).active:focus,
+.show > .btn-primary.dropdown-toggle:focus {
+    box-shadow: 0 0 0 0.2rem rgba(26, 95, 138, 0.5);
+}
+
+/* Outline-primary buttons */
+.btn-outline-primary {
+    color: #1a5f8a;
+    border-color: #1a5f8a;
+}
+.btn-outline-primary:hover {
+    color: #fff;
+    background-color: #1a5f8a;
+    border-color: #1a5f8a;
+}
+.btn-outline-primary:focus,
+.btn-outline-primary.focus {
+    box-shadow: 0 0 0 0.2rem rgba(26, 95, 138, 0.5);
+}
+.btn-outline-primary:not(:disabled):not(.disabled):active,
+.btn-outline-primary:not(:disabled):not(.disabled).active,
+.show > .btn-outline-primary.dropdown-toggle {
+    color: #fff;
+    background-color: #1a5f8a;
+    border-color: #1a5f8a;
+}
+
+/* Background utilities */
+.bg-primary {
+    background-color: #1a5f8a !important;
+}
+a.bg-primary:hover,
+a.bg-primary:focus,
+button.bg-primary:hover,
+button.bg-primary:focus {
+    background-color: #114260 !important;
+}
+.bg-gradient-primary {
+    background-color: #1a5f8a;
+    background-image: linear-gradient(180deg, #1a5f8a 10%, #0f3a57 100%);
+}
+
+/* Text utilities */
+.text-primary {
+    color: #1a5f8a !important;
+}
+a.text-primary:hover,
+a.text-primary:focus {
+    color: #114260 !important;
+}
+.text-secondary {
+    color: #6b7a8d !important;
+}
+a.text-secondary:hover,
+a.text-secondary:focus {
+    color: #4f5b69 !important;
+}
+
+/* Badge */
+.badge-primary {
+    color: #fff;
+    background-color: #1a5f8a;
+}
+
+/* Border utilities */
+.border-left-primary {
+    border-left: 0.25rem solid #1a5f8a !important;
+}
+.border-bottom-primary {
+    border-bottom: 0.25rem solid #1a5f8a !important;
+}
+.border-primary {
+    border-color: #1a5f8a !important;
+}
+
+/* Form control focus */
+.form-control:focus {
+    border-color: #c8dff0;
+    box-shadow: 0 0 0 0.2rem rgba(26, 95, 138, 0.25);
+}
+.custom-control-input:checked ~ .custom-control-label::before {
+    border-color: #1a5f8a;
+    background-color: #1a5f8a;
+}
+.custom-control-input:focus ~ .custom-control-label::before {
+    box-shadow: 0 0 0 0.2rem rgba(26, 95, 138, 0.25);
+}
+.custom-control-input:focus:not(:checked) ~ .custom-control-label::before {
+    border-color: #c8dff0;
+}
+
+/* Sidebar collapsed nav active items */
+.sidebar .nav-item .collapse .collapse-inner .collapse-item.active,
+.sidebar .nav-item .collapsing .collapse-inner .collapse-item.active {
+    color: #1a5f8a;
+}
+
+/* Dropdown active item */
+.dropdown-item.active,
+.dropdown-item:active {
+    background-color: #1a5f8a;
+}
+
+/* Pagination */
+.page-link {
+    color: #1a5f8a;
+}
+.page-link:hover {
+    color: #114260;
+}
+.page-link:focus {
+    box-shadow: 0 0 0 0.2rem rgba(26, 95, 138, 0.25);
+}
+.page-item.active .page-link {
+    background-color: #1a5f8a;
+    border-color: #1a5f8a;
 }
