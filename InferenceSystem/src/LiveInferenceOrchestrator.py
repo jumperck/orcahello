@@ -249,21 +249,35 @@ def parse_config(raw_config):
     return orch_config, locations
 
 
-def resolve_location_model_config(base_model_config, location, logger):
-    """Build a per-location DetectorInferenceConfig by applying location overrides."""
-    overrides = location.get("model_config_overrides")
-    if not overrides:
-        return base_model_config
-    loc_id = location["location_id"]
-    logger.debug(f"[{loc_id}] Applying model config overrides: {overrides}")
-    return apply_model_config_overrides(base_model_config, overrides, logger)
+def resolve_location_model_config(base_model_config, orch_config, location, logger):
+    """Build a per-location DetectorInferenceConfig.
+
+    Applies two layers of overrides on top of ``base_model_config``:
+    1. Shared ``model_config_overrides`` from ``orchestrator_config`` (if any).
+    2. Per-location ``model_config_overrides`` from the location entry (if any).
+
+    Location-level values take precedence over orchestrator-level values.
+    """
+    config = base_model_config
+
+    shared_overrides = orch_config.get("model_config_overrides")
+    if shared_overrides:
+        config = apply_model_config_overrides(config, shared_overrides, logger)
+
+    loc_overrides = location.get("model_config_overrides")
+    if loc_overrides:
+        loc_id = location["location_id"]
+        logger.debug(f"[{loc_id}] Applying location model config overrides: {loc_overrides}")
+        config = apply_model_config_overrides(config, loc_overrides, logger)
+
+    return config
 
 
 def load_model(orch_config, logger):
     """Load OrcaHelloSRKWDetectorV1 from HuggingFace (or local cache if HF_HUB_OFFLINE=1).
 
     Model is loaded once with the base model config (no per-location overrides).
-    Per-location overrides are applied at inference time via detect_srkw_from_file().
+    Per-location overrides are applied at inference time via resolve_location_model_config().
     """
     model_config = DetectorInferenceConfig.from_yaml(orch_config["model_config_path"])
 
@@ -558,7 +572,7 @@ def run_live_hls(
             hydrophone_id=loc["hls_hydrophone_id"],
         )
         loc_model_configs[loc_id] = resolve_location_model_config(
-            base_model_config, loc, logger
+            base_model_config, orch_config, loc, logger
         )
 
     location_ids = [loc["location_id"] for loc in locations]
@@ -682,7 +696,7 @@ if __name__ == "__main__":
     elif hls_stream_type == "DateRangeHLS":
         loc = locations[0]
         loc_model_config = resolve_location_model_config(
-            base_model_config, loc, logger
+            base_model_config, orch_config, loc, logger
         )
         orcasound_client = OrcasoundHLSClient(
             bucket=ORCASOUND_S3_BUCKET,

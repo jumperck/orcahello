@@ -8,20 +8,21 @@ orchestrator_config:
   inference_segment_size: 60
   upload_to_azure: false
   delete_local_wavs: true
+  model_config_overrides:
+    inference:
+      max_batch_size: 8
+    global_prediction:
+      pred_global_threshold: 0.6
 
 location_config:
   - location_id: "rpi_orcasound_lab"
     hls_hydrophone_id: "rpi_orcasound_lab"
-    model_config_overrides:
-      inference:
-        max_batch_size: 8
-      global_prediction:
-        pred_global_threshold: 0.6
 
   - location_id: "rpi_bush_point"
     hls_hydrophone_id: "rpi_bush_point"
+
+  - location_id: "rpi_north_sjc"
+    hls_hydrophone_id: "rpi_north_sjc"
     model_config_overrides:
-      inference:
-        max_batch_size: 8
       global_prediction:
-        pred_global_threshold: 0.6
+        pred_global_threshold: 0.95

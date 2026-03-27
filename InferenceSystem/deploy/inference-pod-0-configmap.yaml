@@ -15,68 +15,33 @@ data:
       inference_segment_size: 60
       upload_to_azure: true
       delete_local_wavs: true
+      model_config_overrides:
+        inference:
+          max_batch_size: 2
+        global_prediction:
+          pred_global_threshold: 0.6
 
     location_config:
       - location_id: "rpi_orcasound_lab"
         hls_hydrophone_id: "rpi_orcasound_lab"
-        model_config_overrides:
-          inference:
-            max_batch_size: 2
-          global_prediction:
-            pred_global_threshold: 0.6
 
       - location_id: "rpi_andrews_bay"
         hls_hydrophone_id: "rpi_andrews_bay"
-        model_config_overrides:
-          inference:
-            max_batch_size: 2
-          global_prediction:
-            pred_global_threshold: 0.6
 
       - location_id: "rpi_bush_point"
         hls_hydrophone_id: "rpi_bush_point"
-        model_config_overrides:
-          inference:
-            max_batch_size: 2
-          global_prediction:
-            pred_global_threshold: 0.6
 
       - location_id: "rpi_north_sjc"
         hls_hydrophone_id: "rpi_north_sjc"
-        model_config_overrides:
-          inference:
-            max_batch_size: 2
-          global_prediction:
-            pred_global_threshold: 0.6
 
       - location_id: "rpi_mast_center"
         hls_hydrophone_id: "rpi_mast_center"
-        model_config_overrides:
-          inference:
-            max_batch_size: 2
-          global_prediction:
-            pred_global_threshold: 0.6
 
       - location_id: "rpi_sunset_bay"
         hls_hydrophone_id: "rpi_sunset_bay"
-        model_config_overrides:
-          inference:
-            max_batch_size: 2
-          global_prediction:
-            pred_global_threshold: 0.6
 
       - location_id: "rpi_point_robinson"
         hls_hydrophone_id: "rpi_point_robinson"
-        model_config_overrides:
-          inference:
-            max_batch_size: 2
-          global_prediction:
-            pred_global_threshold: 0.6
 
       - location_id: "rpi_port_townsend"
         hls_hydrophone_id: "rpi_port_townsend"
-        model_config_overrides:
-          inference:
-            max_batch_size: 2
-          global_prediction:
-            pred_global_threshold: 0.6
