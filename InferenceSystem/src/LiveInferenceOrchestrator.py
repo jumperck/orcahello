@@ -219,14 +219,53 @@ def apply_model_config_overrides(model_config, overrides, logger):
     return DetectorInferenceConfig.from_dict(config_dict)
 
 
-def load_model(orch_config, logger):
-    """Load OrcaHelloSRKWDetectorV1 from HuggingFace (or local cache if HF_HUB_OFFLINE=1), applying any model_config_overrides from orch_config."""
-    model_config = DetectorInferenceConfig.from_yaml(orch_config["model_config_path"])
+def parse_config(raw_config):
+    """Parse YAML config into (orch_config, locations).
 
-    overrides = orch_config.get("model_config_overrides")
-    if overrides:
-        logger.info(f"Applying model config overrides: {overrides}")
-        model_config = apply_model_config_overrides(model_config, overrides, logger)
+    Expects the new multi-location format::
+
+        orchestrator_config:
+            model_id: ...
+            model_config_path: ...
+            ...
+        location_config:
+            - location_id: "rpi_orcasound_lab"
+              hls_hydrophone_id: "rpi_orcasound_lab"
+              model_config_overrides: { ... }
+
+    Returns
+    -------
+    orch_config : dict
+        Shared orchestrator settings (from ``orchestrator_config`` key).
+    locations : list[dict]
+        Per-location dicts.  Each has at least ``location_id`` and
+        ``hls_hydrophone_id``, plus optional ``model_config_overrides``.
+    """
+    orch_config = raw_config["orchestrator_config"]
+    locations = raw_config["location_config"]
+    for loc in locations:
+        if "hls_hydrophone_id" not in loc:
+            loc["hls_hydrophone_id"] = loc["location_id"]
+    return orch_config, locations
+
+
+def resolve_location_model_config(base_model_config, location, logger):
+    """Build a per-location DetectorInferenceConfig by applying location overrides."""
+    overrides = location.get("model_config_overrides")
+    if not overrides:
+        return base_model_config
+    loc_id = location["location_id"]
+    logger.debug(f"[{loc_id}] Applying model config overrides: {overrides}")
+    return apply_model_config_overrides(base_model_config, overrides, logger)
+
+
+def load_model(orch_config, logger):
+    """Load OrcaHelloSRKWDetectorV1 from HuggingFace (or local cache if HF_HUB_OFFLINE=1).
+
+    Model is loaded once with the base model config (no per-location overrides).
+    Per-location overrides are applied at inference time via detect_srkw_from_file().
+    """
+    model_config = DetectorInferenceConfig.from_yaml(orch_config["model_config_path"])
 
     repo_id = orch_config.get(
         "model_hf_repo_id", "orcasound/orcahello-srkw-detector-v1"
