@@ -17,3 +17,11 @@ location_config:
         max_batch_size: 8
       global_prediction:
         pred_global_threshold: 0.6
+
+  - location_id: "rpi_bush_point"
+    hls_hydrophone_id: "rpi_bush_point"
+    model_config_overrides:
+      inference:
+        max_batch_size: 8
+      global_prediction:
+        pred_global_threshold: 0.6
