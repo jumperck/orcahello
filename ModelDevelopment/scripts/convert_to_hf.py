@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.hf_dataset import RECORDING_FEATURES, build_recording_dataset, build_segment_dataset
-from src.models import LABEL_TO_TAG, LINK_TEMPLATE
+from dataset_toolkit.hf_dataset import RECORDING_FEATURES, build_recording_dataset, build_segment_dataset
+from dataset_toolkit.models import LABEL_TO_TAG, LINK_TEMPLATE
 
 logger = logging.getLogger(__name__)
 

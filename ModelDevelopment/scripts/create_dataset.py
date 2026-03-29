@@ -7,16 +7,16 @@ from pathlib import Path
 import pandas as pd
 from datasets import load_from_disk
 
-from src.download import (
+from dataset_toolkit.download import (
     DEFAULT_WORKERS,
     load_detections_from_csv,
     process_month_downloads,
     setup_logging,
     write_download_summary_txt,
 )
-from src.hf_dataset import build_recording_dataset
-from src.models import LINK_TEMPLATE
-from src.utils import build_complete_df, expand_months
+from dataset_toolkit.hf_dataset import build_recording_dataset
+from dataset_toolkit.models import LINK_TEMPLATE
+from dataset_toolkit.utils import build_complete_df, expand_months
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_LOGBOOK_DIR = BASE_DIR / "combined_logbook"

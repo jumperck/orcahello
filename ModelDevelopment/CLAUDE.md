@@ -101,7 +101,7 @@ Auto-labeling (segment-level labels from 60s files) and finetuning are not yet i
 
 ```
 ModelDevelopment/
-├── src/                           # Shared modules
+├── dataset_toolkit/                           # Shared modules
 │   ├── models.py                  # Pydantic schemas (RecordingRow, SegmentRow, Tag, etc.)
 │   ├── hf_dataset.py              # HF Features definitions + dataset builders
 │   ├── utils.py                   # Logbook/cache loading, month expansion, build_complete_df

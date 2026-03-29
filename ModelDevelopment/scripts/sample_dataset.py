@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 from datasets import load_from_disk
 
-from src.sampling import bias_sample, print_summary
+from dataset_toolkit.sampling import bias_sample, print_summary
 
 
 def _dataset_to_sampling_df(dataset) -> pd.DataFrame:

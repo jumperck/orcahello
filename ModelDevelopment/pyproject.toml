@@ -32,7 +32,7 @@ download-from-cache = "scripts.download_from_cache:main"
 convert-to-hf = "scripts.convert_to_hf:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src", "scripts"]
+packages = ["dataset_toolkit", "scripts"]
 
 [tool.uv.sources]
 orcahello-inference = { path = "../InferenceSystem" }

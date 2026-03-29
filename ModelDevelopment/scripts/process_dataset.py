@@ -7,7 +7,7 @@ from pathlib import Path
 
 from datasets import load_from_disk
 
-from src.hf_dataset import add_segment_annotations, build_segment_dataset
+from dataset_toolkit.hf_dataset import add_segment_annotations, build_segment_dataset
 
 
 def main(argv=None):

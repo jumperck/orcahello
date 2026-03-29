@@ -27,8 +27,8 @@ from typing import List, Optional, Tuple
 
 from tqdm import tqdm
 
-from src.utils import expand_months
-from src.download import (
+from dataset_toolkit.utils import expand_months
+from dataset_toolkit.download import (
     AUDIO_EXT,
     DEFAULT_WORKERS,
     create_http_session,
