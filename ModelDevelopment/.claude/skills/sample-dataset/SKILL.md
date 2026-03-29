@@ -1,17 +1,17 @@
 ---
 name: sample-dataset
-description: Bias-sample from a complete CSV to produce a sampled dataset with hard + uniform examples. Use when the user wants to create a sampled subset for evaluation.
+description: Bias-sample from a recording-level HF Dataset to produce a sampled subset with hard + uniform examples. Use when the user wants to create a sampled subset for evaluation.
 disable-model-invocation: true
 allowed-tools: Bash
 ---
 
-Bias-sample from a complete CSV to produce a sampled dataset.
+Bias-sample from a recording-level HF Dataset to produce a sampled subset.
 
-ARGUMENTS format: `<complete_csv> [options]`
-- `complete_csv`: path to a `*--complete.csv` from create_dataset.py
+ARGUMENTS format: `<dataset_dir> [options]`
+- `dataset_dir`: path to dataset directory containing `recording_dataset/` (e.g. `datasets/2025-07_2026-02--all`)
 - options: any of `--target-positives N`, `--negative-ratio N`, `--seed N`
 
-Parse $ARGUMENTS as: first token = complete_csv, remaining tokens passed through as options.
+Parse $ARGUMENTS as: first token = dataset_dir, remaining tokens passed through as options.
 
 Run in the ModelDevelopment uv venv:
 
@@ -19,8 +19,8 @@ Run in the ModelDevelopment uv venv:
 cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment
 
 .venv/bin/python scripts/sample_dataset.py \
-  <complete_csv> \
+  --dataset-dir <dataset_dir> \
   [options]
 ```
 
-Report the output file path and a brief summary of row counts by label and example type.
+Report the output path (`sampled_dataset/` in the dataset dir) and a brief summary of row counts by label and example type.
