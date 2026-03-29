@@ -35,7 +35,7 @@ convert-to-hf = "scripts.convert_to_hf:main"
 packages = ["src", "scripts"]
 
 [tool.uv.sources]
-orcahello-inference = { path = "../../InferenceSystem" }
+orcahello-inference = { path = "../InferenceSystem" }
 
 [build-system]
 requires = ["hatchling"]
