@@ -28,8 +28,11 @@ def _export_csv(dataset, output_path: Path) -> None:
     """Export a recording-level HF Dataset to a flat CSV (backward compat)."""
     rows = []
     for ex in dataset:
-        tag = ex["tags"][0]["tag"] if ex["tags"] else ""
-        score = ex["tags"][0]["score"] if ex["tags"] else None
+        tags = ex["tags"]
+        # HF Sequence stores as dict-of-lists: {"tag": [...], "score": [...]}
+        has_tags = tags and tags.get("tag") and len(tags["tag"]) > 0
+        tag = tags["tag"][0] if has_tags else ""
+        score = tags["score"][0] if has_tags else None
         meta = ex["metadata"]
         rows.append({
             "location_slug": meta["location_slug"],

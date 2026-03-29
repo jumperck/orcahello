@@ -13,9 +13,11 @@ def _dataset_to_sampling_df(dataset) -> pd.DataFrame:
     """Extract columns needed for bias_sample from an HF Dataset."""
     rows = []
     for i, ex in enumerate(dataset):
-        tags = ex.get("tags", [])
-        tag = tags[0]["tag"] if tags else "srkw_negative"
-        score = tags[0]["score"] if tags else 0.0
+        tags = ex.get("tags", {"tag": [], "score": []})
+        tag_list = tags.get("tag", []) if isinstance(tags, dict) else tags
+        score_list = tags.get("score", []) if isinstance(tags, dict) else tags
+        tag = tag_list[0] if tag_list else "srkw_negative"
+        score = score_list[0] if score_list else 0.0
         meta = ex.get("metadata", {})
         rows.append({
             "_index": i,

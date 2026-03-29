@@ -3,6 +3,7 @@ scores in a recording-level HF Dataset."""
 
 import argparse
 import logging
+import shutil
 from pathlib import Path
 
 from datasets import load_from_disk
@@ -68,8 +69,11 @@ def main(argv=None):
         gap_tolerance_s=args.gap_tolerance,
     )
 
-    # Save back in-place
-    dataset.save_to_disk(str(recording_path))
+    # Save via temp dir swap (HF can't overwrite a memory-mapped dataset in-place)
+    tmp_path = recording_path.with_name("recording_dataset_tmp")
+    dataset.save_to_disk(str(tmp_path))
+    shutil.rmtree(recording_path)
+    tmp_path.rename(recording_path)
     logger.info("Saved updated recording dataset to %s", recording_path)
 
     # Optionally build segment-level dataset

@@ -193,10 +193,13 @@ def add_segment_annotations(
         year_month = example["metadata"]["year_month_pacific"]
 
         # Update confidence from inference
+        # tags is columnar: {'tag': [...], 'score': [...]}
         new_conf = conf_map.get(recording_id)
-        tags = example["tags"]
-        if new_conf is not None and tags:
-            tags[0]["score"] = float(new_conf)
+        tag_list = list(example["tags"]["tag"])
+        score_list = list(example["tags"]["score"])
+        if new_conf is not None and tag_list:
+            score_list[0] = float(new_conf)
+        tags = {"tag": tag_list, "score": score_list}
 
         # Find inference JSON
         json_path = inference_dir / year_month / "audio" / f"{recording_id}.json"
@@ -205,7 +208,7 @@ def add_segment_annotations(
             return {"tags": tags, "segment_annotations": example["segment_annotations"]}
 
         # Determine label from existing tag
-        is_positive = tags[0]["tag"] == "srkw_positive" if tags else False
+        is_positive = tag_list[0] == "srkw_positive" if tag_list else False
 
         if not is_positive:
             # Negative: single span covering the whole file
