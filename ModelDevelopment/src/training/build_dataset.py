@@ -5,19 +5,20 @@ Two dataset levels:
 1. Recording-level: full 1-min audio + metadata + segment annotations
 2. Segment-level: individual annotated segments, with large ones broken up
 
-Usage:
+Usage (from ModelDevelopment/):
     python -m src.training.build_dataset \
         --csv annotations.csv \
         --audio-dir /path/to/audio \
         --output-dir ./datasets \
         --max-segment-s 10.0
 
-    # With one-time audio preprocessing (resample, downmix, normalize):
+    # With one-time audio preprocessing (resample, downmix, normalize)
+    # using the InferenceSystem model config:
     python -m src.training.build_dataset \
         --csv annotations.csv \
         --audio-dir /path/to/audio \
         --output-dir ./datasets \
-        --model-config model/config.yaml
+        --model-config ../InferenceSystem/model/config.yaml
 """
 
 import argparse
@@ -367,10 +368,11 @@ def main():
 
     # --- Optional audio preprocessing ---
     if args.model_config:
-        from src.model.types import DetectorInferenceConfig
+        import yaml
 
-        config = DetectorInferenceConfig.from_yaml(args.model_config)
-        audio_cfg = config.as_dict()["audio"]
+        with open(args.model_config) as f:
+            model_config = yaml.safe_load(f)
+        audio_cfg = model_config["audio"]
         logger.info("Applying audio preprocessing: %s", audio_cfg)
         recording_ds = preprocess_audio_column(recording_ds, audio_cfg)
         segment_ds = preprocess_audio_column(segment_ds, audio_cfg)
