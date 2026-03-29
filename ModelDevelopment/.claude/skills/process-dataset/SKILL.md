@@ -30,7 +30,7 @@ mkdir -p inference_results/<DATASET_NAME>
 
 Second Bash call (run inference, tee to log):
 ```bash
-cd /Users/Akash/SideProjects/ai4orcas/orcahello/DatasetCreation && \
+cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment && \
 /Users/Akash/SideProjects/ai4orcas/orcahello/InferenceSystem/.venv/bin/python \
   ../InferenceSystem/scripts/run_inference.py \
   <AUDIO_SUBDIR> \
@@ -48,7 +48,7 @@ Where:
 Find the `*--complete.csv` in `<dataset_dir>`. Then run:
 
 ```bash
-cd /Users/Akash/SideProjects/ai4orcas/orcahello/DatasetCreation && \
+cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment && \
 .venv/bin/python scripts/process_dataset.py \
   --complete-csv <dataset_dir>/<COMPLETE_CSV> \
   --inference-dir <OUTPUT_DIR>
@@ -59,7 +59,7 @@ cd /Users/Akash/SideProjects/ai4orcas/orcahello/DatasetCreation && \
 After post-processing, write a summary markdown file next to the segmented CSV (`<dataset_dir>/<DATASET_NAME>--summary.md`):
 
 ```bash
-cd /Users/Akash/SideProjects/ai4orcas/orcahello/DatasetCreation && \
+cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment && \
 .venv/bin/python -c "
 import pandas as pd
 from pathlib import Path

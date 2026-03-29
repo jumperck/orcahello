@@ -1,4 +1,4 @@
-# CLAUDE.md — DatasetCreation
+# CLAUDE.md — ModelDevelopment
 
 Guidance for Claude Code when working in this directory.
 
@@ -9,7 +9,7 @@ This directory contains the pipeline for building labeled datasets of orca detec
 ## Setup
 
 ```bash
-cd DatasetCreation
+cd ModelDevelopment
 uv venv --python 3.10
 source .venv/bin/activate
 uv pip install -e .
@@ -85,7 +85,7 @@ Auto-labeling (segment-level labels from 60s files) and finetuning are not yet i
 ## Code Structure
 
 ```
-DatasetCreation/
+ModelDevelopment/
 ├── src/                           # Shared modules
 │   ├── models.py                  # Pydantic schemas (DetectionRecord, SegmentRecord) + format_df
 │   ├── data_loading.py            # Logbook/cache loading, month expansion, build_complete_df
@@ -116,7 +116,7 @@ DatasetCreation/
 ## Output Directory Layout
 
 ```
-DatasetCreation/
+ModelDevelopment/
 ├── datasets/                  # Output from create_dataset.py
 │   └── {months}--{location}/
 │       ├── *--complete.csv    # All detections (cached)

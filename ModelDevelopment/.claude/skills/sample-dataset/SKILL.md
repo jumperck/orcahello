@@ -13,10 +13,10 @@ ARGUMENTS format: `<complete_csv> [options]`
 
 Parse $ARGUMENTS as: first token = complete_csv, remaining tokens passed through as options.
 
-Run in the DatasetCreation uv venv:
+Run in the ModelDevelopment uv venv:
 
 ```bash
-cd /Users/Akash/SideProjects/ai4orcas/orcahello/DatasetCreation
+cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment
 
 .venv/bin/python scripts/sample_dataset.py \
   <complete_csv> \

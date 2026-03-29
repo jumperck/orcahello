@@ -16,10 +16,10 @@ Parse $ARGUMENTS as: first token = months, second token = location (default `all
 
 Derive the output dir from the months and location following the pattern `{months_normalized}--{location}` where months range `2025-07:2026-02` → `2025-07_2026-02` (colon replaced with underscore, no spaces).
 
-Run in the DatasetCreation uv venv:
+Run in the ModelDevelopment uv venv:
 
 ```bash
-cd /Users/Akash/SideProjects/ai4orcas/orcahello/DatasetCreation
+cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment
 
 MONTHS="<months>"
 LOCATION="<location>"
