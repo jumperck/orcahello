@@ -32,7 +32,7 @@ import soundfile as sf
 import torch
 from datasets import Audio, Dataset, Features, Sequence, Value
 
-from src.schemas import (
+from src.models import (
     LABEL_TO_TAG,
     AnnotationCSVRow,
     RecordingRow,
