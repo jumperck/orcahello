@@ -12,9 +12,8 @@ Datasets are stored as **HuggingFace Datasets** (Arrow-backed) as the primary fo
 
 ```bash
 cd ModelDevelopment
-uv venv --python 3.10
+uv sync
 source .venv/bin/activate
-uv pip install -e .
 ```
 
 All scripts should be run from this directory using `.venv/bin/python` or after activating the venv.
