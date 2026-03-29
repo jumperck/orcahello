@@ -5,7 +5,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from src.processing import build_segmented_csv, merge_confidences
+from src.utils import build_segmented_csv, merge_confidences
 
 
 def main(argv=None):

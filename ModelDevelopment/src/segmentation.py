@@ -1,4 +1,4 @@
-"""Auto-segment utility: binarize inference result JSONs into fine-grained time-span segments.
+"""Auto-segment utility: annotate fine-grained time-span segments by binarizing model inference result JSONs.
 
 Load inference JSON -> compute a dynamic confidence threshold via Otsu's
 histogram method -> find contiguous regions above that threshold -> merge

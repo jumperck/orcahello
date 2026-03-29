@@ -27,7 +27,7 @@ from typing import List, Optional, Tuple
 
 from tqdm import tqdm
 
-from src.data_loading import expand_months
+from src.utils import expand_months
 from src.download import (
     AUDIO_EXT,
     DEFAULT_WORKERS,

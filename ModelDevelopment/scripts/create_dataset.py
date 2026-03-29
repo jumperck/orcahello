@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.data_loading import build_complete_df, expand_months
+from src.utils import build_complete_df, expand_months
 from src.download import (
     DEFAULT_WORKERS,
     load_detections_from_csv,
