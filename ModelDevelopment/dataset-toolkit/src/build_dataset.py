@@ -5,8 +5,8 @@ Two dataset levels:
 1. Recording-level: full 1-min audio + metadata + segment annotations
 2. Segment-level: individual annotated segments, with large ones broken up
 
-Usage (from ModelDevelopment/):
-    python -m src.training.build_dataset \
+Usage (from dataset-toolkit/):
+    python -m src.build_dataset \
         --csv annotations.csv \
         --audio-dir /path/to/audio \
         --output-dir ./datasets \
@@ -14,11 +14,11 @@ Usage (from ModelDevelopment/):
 
     # With one-time audio preprocessing (resample, downmix, normalize)
     # using the InferenceSystem model config:
-    python -m src.training.build_dataset \
+    python -m src.build_dataset \
         --csv annotations.csv \
         --audio-dir /path/to/audio \
         --output-dir ./datasets \
-        --model-config ../InferenceSystem/model/config.yaml
+        --model-config ../../InferenceSystem/model/config.yaml
 """
 
 import argparse
@@ -26,13 +26,13 @@ import csv
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import soundfile as sf
+import torch
 from datasets import Audio, Dataset, Features, Sequence, Value
 
-from .schemas import (
+from src.schemas import (
     LABEL_TO_TAG,
     AnnotationCSVRow,
     RecordingRow,
@@ -270,12 +270,9 @@ def preprocess_audio_column(
 ) -> Dataset:
     """Apply one-time, materialized audio transforms to the audio column.
 
-    Applies the transforms defined in model_config.audio (resample, downmix,
-    normalize) and materializes the result to a new Arrow cache. This avoids
-    repeating expensive resampling every epoch.
-
-    Uses ``cast_column`` for resampling (handled natively by HF Audio) and
-    ``.map()`` for downmix + normalize.
+    Uses the InferenceSystem audio frontend (load_processed_waveform) to apply
+    the same preprocessing used during inference: resample, downmix to mono,
+    and optional peak normalization. Results are materialized to Arrow cache.
 
     Args:
         dataset: HF Dataset with an ``audio`` column.
@@ -287,35 +284,41 @@ def preprocess_audio_column(
     Returns:
         New Dataset with preprocessed audio column.
     """
+    from src.model.audio_frontend import _downmix_to_mono, _resample_audio
+
     target_sr = audio_config.get("resample_rate")
     downmix = audio_config.get("downmix_mono", True)
     normalize = audio_config.get("normalize", False)
 
-    # Resampling: HF Audio handles this efficiently at decode time.
-    # cast_column sets the target SR; .map() below triggers the actual resample.
-    if target_sr:
-        dataset = dataset.cast_column("audio", Audio(sampling_rate=target_sr))
-
-    if not (downmix or normalize):
-        # Force materialization of resampled audio so it's cached in Arrow
-        if target_sr:
-            dataset = dataset.map(lambda x: x)
-        return dataset
-
     def _process(example):
         audio = example["audio"]
         array = np.array(audio["array"], dtype=np.float32)
-        sr = audio["sampling_rate"]
+        orig_sr = audio["sampling_rate"]
 
-        if downmix and array.ndim > 1:
-            array = array.mean(axis=-1)
+        # Shape to (channels, samples) for audio_frontend functions
+        if array.ndim == 1:
+            waveform = torch.from_numpy(array.reshape(1, -1))
+        else:
+            waveform = torch.from_numpy(array.T)
+
+        if downmix and waveform.shape[0] > 1:
+            waveform = _downmix_to_mono(waveform)
+
+        if target_sr and target_sr != orig_sr:
+            waveform = _resample_audio(waveform, orig_sr, target_sr)
+            orig_sr = target_sr
 
         if normalize:
-            peak = np.abs(array).max()
+            peak = waveform.abs().max()
             if peak > 0:
-                array = array / peak
+                waveform = waveform / peak
 
-        return {"audio": {"array": array, "sampling_rate": sr}}
+        return {
+            "audio": {
+                "array": waveform.squeeze(0).numpy(),
+                "sampling_rate": orig_sr,
+            }
+        }
 
     return dataset.map(_process)
 
