@@ -1,24 +1,34 @@
-"""Post-inference processing: merge global_confidence into the complete CSV
-and produce a segment-level CSV via auto_segment."""
+"""Post-inference processing: add segment annotations and update confidence
+scores in a recording-level HF Dataset."""
 
 import argparse
 import logging
 from pathlib import Path
 
-from src.utils import build_segmented_csv, merge_confidences
+from datasets import load_from_disk
+
+from src.hf_dataset import add_segment_annotations, build_segment_dataset
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Post-inference processing: merge confidences and produce segment-level CSV.",
+        description="Post-inference processing: merge confidences and add segment annotations.",
     )
     parser.add_argument(
-        "--complete-csv", required=True, type=Path,
-        help="Path to the *--complete.csv dataset file",
+        "--dataset-dir", required=True, type=Path,
+        help="Path to the dataset directory (must contain recording_dataset/)",
     )
     parser.add_argument(
         "--inference-dir", required=True, type=Path,
         help="Path to the inference results directory (must contain summary.csv)",
+    )
+    parser.add_argument(
+        "--build-segment-dataset", action="store_true",
+        help="Also build a segment-level HF Dataset from the annotated recordings",
+    )
+    parser.add_argument(
+        "--max-segment-s", type=float, default=10.0,
+        help="Max segment duration for segment dataset (default: 10.0)",
     )
     parser.add_argument(
         "--min-threshold", type=float, default=0.1,
@@ -36,23 +46,48 @@ def main(argv=None):
     )
     logger = logging.getLogger(__name__)
 
-    complete_csv = args.complete_csv.resolve()
+    dataset_dir = args.dataset_dir.resolve()
     inference_dir = args.inference_dir.resolve()
+    recording_path = dataset_dir / "recording_dataset"
 
-    # Step 1: merge global_confidence into complete CSV
-    logger.info("Merging confidences from %s into %s", inference_dir, complete_csv)
-    df = merge_confidences(complete_csv, inference_dir)
+    if not recording_path.exists():
+        logger.error("No recording_dataset/ found in %s", dataset_dir)
+        raise SystemExit(1)
 
-    # Step 2: build segmented CSV
-    segmented_path = complete_csv.with_name(
-        complete_csv.name.replace("--complete.csv", "--complete-segmented.csv")
-    )
-    logger.info("Building segmented CSV: %s", segmented_path)
-    build_segmented_csv(
-        df, inference_dir, segmented_path,
+    # Load recording dataset
+    logger.info("Loading recording dataset from %s", recording_path)
+    dataset = load_from_disk(str(recording_path))
+    logger.info("Loaded %d recordings", len(dataset))
+
+    # Add segment annotations and update confidence scores
+    logger.info("Adding segment annotations from %s", inference_dir)
+    dataset = add_segment_annotations(
+        dataset,
+        inference_dir,
         min_threshold=args.min_threshold,
         gap_tolerance_s=args.gap_tolerance,
     )
+
+    # Save back in-place
+    dataset.save_to_disk(str(recording_path))
+    logger.info("Saved updated recording dataset to %s", recording_path)
+
+    # Optionally build segment-level dataset
+    if args.build_segment_dataset:
+        audio_dir = dataset_dir / "audio"
+        segment_path = dataset_dir / "segment_dataset"
+
+        logger.info(
+            "Building segment dataset (max_segment_s=%.1f)...",
+            args.max_segment_s,
+        )
+        seg_ds = build_segment_dataset(
+            dataset,
+            audio_dir=audio_dir if audio_dir.exists() else None,
+            max_segment_s=args.max_segment_s,
+        )
+        seg_ds.save_to_disk(str(segment_path))
+        logger.info("Saved segment dataset to %s (%d segments)", segment_path, len(seg_ds))
 
 
 if __name__ == "__main__":
