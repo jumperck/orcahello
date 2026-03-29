@@ -1,0 +1,36 @@
+[project]
+name = "orcahello-dataset-creation"
+version = "0.1.0"
+description = "Fetch and analyze orca detection data from multiple APIs"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "urllib3>=2.0.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "pytz>=2023.3",
+    "tqdm>=4.66.0",
+    "soundfile>=0.12.0",
+    "gspread>=6.0.0",
+    "google-auth>=2.0.0",
+    "google-auth-oauthlib>=1.0.0",
+    "pyyaml>=6.0.0",
+    "matplotlib>=3.7.0",
+    "wordcloud>=1.9.0",
+]
+
+[project.scripts]
+create-dataset = "scripts.create_dataset:main"
+sample-dataset = "scripts.sample_dataset:main"
+process-dataset = "scripts.process_dataset:main"
+evaluate = "scripts.evaluate:main"
+download-from-cache = "scripts.download_from_cache:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src", "scripts"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
