@@ -1,80 +1,128 @@
-"""Pydantic schemas for detection/segment records and shared formatting helpers."""
+"""Pydantic schemas for HF dataset rows and shared constants."""
 
 from typing import Optional
 
-import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 
 LINK_TEMPLATE = "https://aifororcas.azurewebsites.net/detections/detection/{detection_id}"
 
 LABEL_MAP = {"yes": 1, "no": 0}
 
+LABEL_TO_TAG: dict[int, str] = {0: "srkw_negative", 1: "srkw_positive"}
+TAG_TO_LABEL: dict[str, int] = {v: k for k, v in LABEL_TO_TAG.items()}
 
-class DetectionRecord(BaseModel):
-    """Schema for a single detection in the complete CSV."""
+
+# ---------------------------------------------------------------------------
+# Shared types
+# ---------------------------------------------------------------------------
+
+
+class Tag(BaseModel):
+    """A scored tag on a recording (e.g. from a classifier or annotator)."""
+
+    tag: str
+    score: float = Field(ge=0.0, le=1.0, default=1.0)
+
+
+class SegmentAnnotation(BaseModel):
+    """A single annotated time-span within a recording."""
+
+    start: float = Field(ge=0.0, description="Segment start in seconds")
+    end: float = Field(gt=0.0, description="Segment end in seconds")
+    tag: str = Field(description="Annotation tag, e.g. 'srkw_positive'")
+
+    @model_validator(mode="after")
+    def _end_after_start(self):
+        if self.end <= self.start:
+            raise ValueError(f"end ({self.end}) must be > start ({self.start})")
+        return self
+
+    @property
+    def duration_s(self) -> float:
+        return self.end - self.start
+
+
+class OrcaHelloRecordingMetadata(BaseModel):
+    """Metadata for a single 1-min OrcaHello detection recording."""
 
     location_slug: str
     year_month_pacific: str
-    date_hour_pacific: str
-    timestamp_pacific: str
-    detection_id: str
-    binary_label: int
-    global_confidence: Optional[float] = None
-    comments: Optional[str] = None
-    detection_link: str
+    date_hour_pacific: str = ""
+    timestamp_pacific: str = ""
     audio_uri: str = ""
     spectrogram_uri: str = ""
 
 
-class SampledDetectionRecord(DetectionRecord):
-    """Detection record with an additional example_type column for sampled datasets."""
-
-    example_type: str
-
-
-class SegmentRecord(BaseModel):
-    """Schema for a segment-level row in the segmented CSV."""
-
-    location_slug: str
-    year_month_pacific: str
-    date_hour_pacific: str
-    timestamp_pacific: str
-    detection_id: str
-    detection_link: str
-    segment_start_s: float
-    segment_end_s: float
-    segment_confidence: float
-    segment_binary_label: int
+# ---------------------------------------------------------------------------
+# Recording-level dataset row
+# ---------------------------------------------------------------------------
 
 
-def format_df(df: pd.DataFrame, model_cls: type[BaseModel]) -> pd.DataFrame:
-    """Select and order columns based on a Pydantic model's field names.
+class RecordingRow(BaseModel):
+    """Schema for one row in the recording-level HF dataset.
 
-    Adds detection_link if missing, fills missing URI columns with empty strings,
-    and fills global_confidence from meta_orcahello_confidence if available.
+    HF columns:
+        audio                Audio()                         – full recording
+        recording_id         Value("string")                 – unique recording id
+        tags                 Sequence({tag, score})           – file-level tags
+        metadata             {location_slug, ...}            – OrcaHello metadata
+        comment              Value("string")                 – free-text note
+        segment_annotations  Sequence({start, end, tag})     – per-segment labels
     """
-    df = df.copy()
 
-    # Derive detection_link if absent
-    if "detection_link" not in df.columns and "detection_id" in df.columns:
-        df["detection_link"] = df["detection_id"].apply(
-            lambda d: LINK_TEMPLATE.format(detection_id=d)
-        )
+    recording_id: str
+    tags: list[Tag] = Field(default_factory=list)
+    metadata: Optional[OrcaHelloRecordingMetadata] = None
+    comment: str = ""
+    segment_annotations: list[SegmentAnnotation] = Field(default_factory=list)
+    # `audio` is managed by HF Audio feature, not validated here
 
-    # Fill global_confidence from v0 score if needed
-    if "meta_orcahello_confidence" in df.columns:
-        df["global_confidence"] = df["global_confidence"].fillna(df["meta_orcahello_confidence"])
 
-    # Ensure URI columns exist
-    for col in ("audio_uri", "spectrogram_uri"):
-        if col not in df.columns:
-            df[col] = ""
+# ---------------------------------------------------------------------------
+# Segment-level dataset row
+# ---------------------------------------------------------------------------
 
-    cols = list(model_cls.model_fields.keys())
-    # Only select columns that exist in the dataframe
-    cols = [c for c in cols if c in df.columns]
-    return df[cols].sort_values(
-        ["year_month_pacific", "date_hour_pacific", "timestamp_pacific"],
-        na_position="last",
-    )
+
+class SegmentRow(BaseModel):
+    """Schema for one row in the segment-level HF dataset.
+
+    HF columns:
+        audio      Audio()            – extracted segment waveform
+        label      Value("int64")     – binary label (0 / 1)
+        tag        Value("string")    – e.g. "srkw_positive"
+        source_id  Value("string")    – recording id this segment came from
+        start_s    Value("float32")   – start time in source recording
+        end_s      Value("float32")   – end time in source recording
+    """
+
+    label: int = Field(ge=0, le=1)
+    tag: str
+    source_id: str
+    start_s: float = Field(ge=0.0)
+    end_s: float = Field(gt=0.0)
+    # `audio` is managed by HF Audio feature, not validated here
+
+    @model_validator(mode="after")
+    def _end_after_start(self):
+        if self.end_s <= self.start_s:
+            raise ValueError(f"end_s ({self.end_s}) must be > start_s ({self.start_s})")
+        return self
+
+    @model_validator(mode="after")
+    def _tag_matches_label(self):
+        expected = LABEL_TO_TAG.get(self.label)
+        if expected and self.tag != expected:
+            raise ValueError(
+                f"tag '{self.tag}' does not match label {self.label} "
+                f"(expected '{expected}')"
+            )
+        return self
+
+    @property
+    def duration_s(self) -> float:
+        return self.end_s - self.start_s
