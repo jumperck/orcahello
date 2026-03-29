@@ -1,9 +1,11 @@
 [project]
-name = "orcahello-dataset-creation"
+name = "orcahello-datasets-toolkit"
 version = "0.1.0"
-description = "Fetch and analyze orca detection data from multiple APIs"
+description = "Toolkit for building and processing OrcaHello datasets"
 requires-python = ">=3.10"
 dependencies = [
+    "orcahello-inference",
+    "datasets>=3.0.0,<4.0.0",
     "requests>=2.31.0",
     "pydantic>=2.0.0",
     "urllib3>=2.0.0",
@@ -27,9 +29,13 @@ sample-dataset = "scripts.sample_dataset:main"
 process-dataset = "scripts.process_dataset:main"
 evaluate = "scripts.evaluate:main"
 download-from-cache = "scripts.download_from_cache:main"
+convert-to-hf = "scripts.convert_to_hf:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src", "scripts"]
+
+[tool.uv.sources]
+orcahello-inference = { path = "../../InferenceSystem" }
 
 [build-system]
 requires = ["hatchling"]
