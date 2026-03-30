@@ -185,10 +185,7 @@ def add_segment_annotations(
         conf_map = dict(zip(summary["detection_id"], summary["global_confidence"]))
         logger.info("Loaded %d confidence scores from %s", len(conf_map), summary_csv)
 
-    missing_json = 0
-
     def _process(example):
-        nonlocal missing_json
         recording_id = example["recording_id"]
         year_month = example["metadata"]["year_month_pacific"]
 
@@ -204,7 +201,6 @@ def add_segment_annotations(
         # Find inference JSON
         json_path = inference_dir / year_month / "audio" / f"{recording_id}.json"
         if not json_path.exists():
-            missing_json += 1
             return {"tags": tags, "segment_annotations": example["segment_annotations"]}
 
         # Determine label from existing tag
@@ -232,10 +228,7 @@ def add_segment_annotations(
         return {"tags": tags, "segment_annotations": annotations}
 
     result = dataset.map(_process, writer_batch_size=100)
-    logger.info(
-        "Added segment annotations (%d recordings had no inference JSON)",
-        missing_json,
-    )
+    logger.info("Added segment annotations to %d recordings", len(result))
     return result
 
 
@@ -245,25 +238,38 @@ def add_segment_annotations(
 
 
 def build_segment_dataset(
-    dataset: Dataset,
+    dataset_path: str | Path,
     max_segment_s: float = 10.0,
+    num_proc: int = 1,
 ) -> Dataset:
     """Build segment-level HF Dataset from a recording-level dataset with segment_annotations.
 
     Args:
-        dataset: Recording-level HF Dataset with populated segment_annotations.
+        dataset_path: Path to a recording-level HF Dataset on disk.
         max_segment_s: Maximum segment duration; longer segments are split.
+        num_proc: Number of parallel processes.
 
     Returns:
         HF Dataset with SEGMENT_FEATURES schema.
     """
     import io
 
-    # Skip HF's automatic audio decoding; we seek into raw FLAC bytes directly
-    raw_dataset = dataset.cast_column("audio", Audio(decode=False))
+    if num_proc < 1:
+        raise ValueError(f"num_proc must be >= 1, got {num_proc}")
 
-    def _generate_segments():
-        for example in raw_dataset:
+    from datasets import load_from_disk
+
+    dataset_path = str(dataset_path)
+    # Load once to get length; workers will re-load (memory-mapped) independently
+    n = len(load_from_disk(dataset_path))
+
+    def _generate_segments(indices, ds_path):
+        from datasets import Audio as _Audio
+        from datasets import load_from_disk as _load
+
+        ds = _load(ds_path).cast_column("audio", _Audio(decode=False))
+        for idx in indices:
+            example = ds[idx]
             recording_id = example["recording_id"]
             annotations = example.get("segment_annotations", [])
 
@@ -302,12 +308,21 @@ def build_segment_dataset(
                         "end_s": chunk_end,
                     }
 
-    result = Dataset.from_generator(_generate_segments, features=SEGMENT_FEATURES)
+    result = Dataset.from_generator(
+        _generate_segments,
+        features=SEGMENT_FEATURES,
+        gen_kwargs={
+            "indices": list(range(n)),
+            "ds_path": dataset_path,
+        },
+        num_proc=num_proc,
+    )
     logger.info(
-        "Built segment dataset: %d segments from %d recordings (max_segment_s=%.1f)",
+        "Built segment dataset: %d segments from %d recordings (max_segment_s=%.1f, num_proc=%d)",
         len(result),
-        len(dataset),
+        n,
         max_segment_s,
+        num_proc,
     )
     return result
 

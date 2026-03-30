@@ -7,10 +7,11 @@ allowed-tools: Bash
 
 Run model inference on a dataset's audio, then post-process: merge confidences and add segment annotations to the recording-level HF Dataset.
 
-ARGUMENTS format: `<dataset_dir> [output_dir] [--build-segment-dataset]`
+ARGUMENTS format: `<dataset_dir> [output_dir] [--build-segment-dataset] [--num-proc N]`
 - `dataset_dir`: path to the dataset directory (e.g. `datasets/2024-07_2025-06--all`) — must contain `recording_dataset/` and `audio/` with downloaded FLAC files
 - `output_dir`: optional inference results output dir (default: `inference_results/<dataset_name>`)
 - `--build-segment-dataset`: optional flag to also produce a segment-level HF Dataset
+- `--num-proc N`: optional number of parallel processes (default: cpu count)
 
 Parse $ARGUMENTS: first token = dataset_dir, second token = output_dir (derive from dataset_dir name if omitted).
 
@@ -47,7 +48,8 @@ cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment && \
 .venv/bin/python scripts/process_dataset.py \
   --dataset-dir <dataset_dir> \
   --inference-dir <OUTPUT_DIR> \
-  [--build-segment-dataset]
+  [--build-segment-dataset] \
+  [--num-proc N]
 ```
 
 **3. Report**

@@ -3,6 +3,7 @@ scores in a recording-level HF Dataset."""
 
 import argparse
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -38,6 +39,10 @@ def main(argv=None):
     parser.add_argument(
         "--gap-tolerance", type=float, default=1.0,
         help="Max gap in seconds between segments to merge (default: 1.0)",
+    )
+    parser.add_argument(
+        "--num-proc", type=int, default=None,
+        help="Number of parallel processes (default: cpu count)",
     )
     args = parser.parse_args(argv)
 
@@ -84,13 +89,17 @@ def main(argv=None):
             logger.info("Removing existing segment dataset at %s", segment_path)
             shutil.rmtree(segment_path)
 
+        num_proc = args.num_proc or os.cpu_count() or 1
+
         logger.info(
-            "Building segment dataset (max_segment_s=%.1f)...",
+            "Building segment dataset (max_segment_s=%.1f, num_proc=%d)...",
             args.max_segment_s,
+            num_proc,
         )
         seg_ds = build_segment_dataset(
-            dataset,
+            recording_path,
             max_segment_s=args.max_segment_s,
+            num_proc=num_proc,
         )
         seg_ds.save_to_disk(str(segment_path))
         logger.info("Saved segment dataset to %s (%d segments)", segment_path, len(seg_ds))
