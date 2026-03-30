@@ -1,3 +1,5 @@
 *.wav
 *.flac
 *.png
+*.csv
+*.arrow
