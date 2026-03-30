@@ -231,7 +231,7 @@ def add_segment_annotations(
 
         return {"tags": tags, "segment_annotations": annotations}
 
-    result = dataset.map(_process)
+    result = dataset.map(_process, writer_batch_size=100)
     logger.info(
         "Added segment annotations (%d recordings had no inference JSON)",
         missing_json,
@@ -246,59 +246,54 @@ def add_segment_annotations(
 
 def build_segment_dataset(
     dataset: Dataset,
-    audio_dir: Path | None = None,
     max_segment_s: float = 10.0,
 ) -> Dataset:
     """Build segment-level HF Dataset from a recording-level dataset with segment_annotations.
 
     Args:
         dataset: Recording-level HF Dataset with populated segment_annotations.
-        audio_dir: If provided, read audio slices via soundfile seek.
-            Expected layout: {audio_dir}/{year_month}/audio/{recording_id}.flac
         max_segment_s: Maximum segment duration; longer segments are split.
 
     Returns:
         HF Dataset with SEGMENT_FEATURES schema.
     """
-    records = []
-    for example in dataset:
-        recording_id = example["recording_id"]
-        annotations = example.get("segment_annotations", [])
-        year_month = example["metadata"]["year_month_pacific"]
+    import io
 
-        if not annotations:
-            continue
+    # Skip HF's automatic audio decoding; we seek into raw FLAC bytes directly
+    raw_dataset = dataset.cast_column("audio", Audio(decode=False))
 
-        # Resolve audio file if needed
-        audio_path = None
-        sr = None
-        if audio_dir:
-            candidate = audio_dir / year_month / "audio" / f"{recording_id}.flac"
-            if candidate.exists():
-                audio_path = candidate
-                sr = sf.info(str(audio_path)).samplerate
+    def _generate_segments():
+        for example in raw_dataset:
+            recording_id = example["recording_id"]
+            annotations = example.get("segment_annotations", [])
 
-        for ann in annotations:
-            tag = ann["tag"]
-            label = 1 if tag == "srkw_positive" else 0
+            if not annotations:
+                continue
 
-            for chunk_start, chunk_end in _break_segment(
-                ann["start"], ann["end"], max_segment_s
-            ):
-                audio_value = None
-                if audio_path and sr:
+            audio_col = example.get("audio")
+            flac_bytes = audio_col.get("bytes") if audio_col else None
+            if not flac_bytes:
+                continue
+
+            buf = io.BytesIO(flac_bytes)
+            sr = sf.info(buf).samplerate
+
+            for ann in annotations:
+                tag = ann["tag"]
+                label = 1 if tag == "srkw_positive" else 0
+
+                for chunk_start, chunk_end in _break_segment(
+                    ann["start"], ann["end"], max_segment_s
+                ):
+                    buf.seek(0)
                     start_frame = int(chunk_start * sr)
                     stop_frame = int(chunk_end * sr)
                     data, _ = sf.read(
-                        str(audio_path),
-                        start=start_frame,
-                        stop=stop_frame,
-                        dtype="float32",
+                        buf, start=start_frame, stop=stop_frame, dtype="float32",
                     )
                     audio_value = {"array": data, "sampling_rate": sr}
 
-                records.append(
-                    {
+                    yield {
                         "audio": audio_value,
                         "label": label,
                         "tag": tag,
@@ -306,15 +301,15 @@ def build_segment_dataset(
                         "start_s": chunk_start,
                         "end_s": chunk_end,
                     }
-                )
 
+    result = Dataset.from_generator(_generate_segments, features=SEGMENT_FEATURES)
     logger.info(
         "Built segment dataset: %d segments from %d recordings (max_segment_s=%.1f)",
-        len(records),
+        len(result),
         len(dataset),
         max_segment_s,
     )
-    return Dataset.from_list(records, features=SEGMENT_FEATURES)
+    return result
 
 
 # ---------------------------------------------------------------------------

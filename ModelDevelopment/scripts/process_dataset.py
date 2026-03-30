@@ -78,8 +78,11 @@ def main(argv=None):
 
     # Optionally build segment-level dataset
     if args.build_segment_dataset:
-        audio_dir = dataset_dir / "audio"
         segment_path = dataset_dir / "segment_dataset"
+
+        if segment_path.exists():
+            logger.info("Removing existing segment dataset at %s", segment_path)
+            shutil.rmtree(segment_path)
 
         logger.info(
             "Building segment dataset (max_segment_s=%.1f)...",
@@ -87,7 +90,6 @@ def main(argv=None):
         )
         seg_ds = build_segment_dataset(
             dataset,
-            audio_dir=audio_dir if audio_dir.exists() else None,
             max_segment_s=args.max_segment_s,
         )
         seg_ds.save_to_disk(str(segment_path))
