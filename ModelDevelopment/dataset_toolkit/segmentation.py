@@ -134,7 +134,7 @@ def auto_segment_from_json(
 
     all_confidences = [s["confidence"] for s in segments]
     threshold = compute_dynamic_threshold(all_confidences, min_threshold, n_bins)
-    logger.info(
+    logger.debug(
         "%s: threshold=%.4f (otsu=%.4f, min=%.4f)",
         filename, threshold,
         _otsu_threshold(all_confidences, n_bins), min_threshold,
@@ -143,7 +143,7 @@ def auto_segment_from_json(
     spans = _merge_contiguous_spans(segments, threshold, gap_tolerance_s)
 
     if not spans:
-        logger.info("%s: no segments above threshold %.4f", filename, threshold)
+        logger.warning("%s: no segments above threshold %.4f", filename, threshold)
         return []
 
     for span in spans:
