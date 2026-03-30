@@ -30,6 +30,7 @@ process-dataset = "scripts.process_dataset:main"
 evaluate = "scripts.evaluate:main"
 download-from-cache = "scripts.download_from_cache:main"
 convert-to-hf = "scripts.convert_to_hf:main"
+summarize-dataset = "scripts.summarize_dataset:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["dataset_toolkit", "scripts"]

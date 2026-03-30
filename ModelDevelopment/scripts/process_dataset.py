@@ -21,8 +21,9 @@ def main(argv=None):
         help="Path to the dataset directory (must contain recording_dataset/)",
     )
     parser.add_argument(
-        "--inference-dir", required=True, type=Path,
-        help="Path to the inference results directory (must contain summary.csv)",
+        "--inference-dir", type=Path, default=None,
+        help="Path to the inference results directory (must contain summary.csv). "
+             "Defaults to {dataset-dir}/inference_results/",
     )
     parser.add_argument(
         "--build-segment-dataset", action="store_true",
@@ -53,7 +54,7 @@ def main(argv=None):
     logger = logging.getLogger(__name__)
 
     dataset_dir = args.dataset_dir.resolve()
-    inference_dir = args.inference_dir.resolve()
+    inference_dir = (args.inference_dir or dataset_dir / "inference_results").resolve()
     recording_path = dataset_dir / "recording_dataset"
 
     if not recording_path.exists():

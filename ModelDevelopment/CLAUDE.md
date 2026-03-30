@@ -53,7 +53,7 @@ Use `../InferenceSystem/scripts/run_inference.py` on the downloaded audio direct
 ```bash
 python ../InferenceSystem/scripts/run_inference.py \
   datasets/2025-07_2025-09--all/audio/ \
-  --output inference_results/2025-07_2025-09--all--v1/
+  --output datasets/2025-07_2025-09--all/inference_results/
 ```
 
 This produces per-file JSON results and a `summary.csv`. See that script's docstring for full usage including `--reaggregate` mode.
@@ -62,8 +62,7 @@ This produces per-file JSON results and a `summary.csv`. See that script's docst
 
 ```bash
 python scripts/process_dataset.py \
-  --dataset-dir datasets/2025-07_2025-09--all/ \
-  --inference-dir inference_results/2025-07_2025-09--all--v1/
+  --dataset-dir datasets/2025-07_2025-09--all/
 ```
 
 Merges `global_confidence` from inference results and adds `segment_annotations` to the recording dataset in-place.
@@ -75,8 +74,8 @@ Add `--build-segment-dataset` to also produce a `segment_dataset/` with individu
 ```bash
 python scripts/evaluate.py \
   --ground-truth detection_downloads/2025-11/ground_truth_labels.csv \
-  --predictions inference_results/2025-11--v1.2/summary.csv \
-  --output-dir inference_results/2025-11--v1.2/
+  --predictions datasets/2025-11--all/inference_results/summary.csv \
+  --output-dir datasets/2025-11--all/inference_results/
 ```
 
 Outputs `results.txt` (AUROC, operating points, hard examples) and `roc_curve.png`.
@@ -128,6 +127,7 @@ ModelDevelopment/
 | `scripts/evaluate.py` | Evaluate inference predictions against ground truth; outputs ROC + metrics |
 | `scripts/convert_to_hf.py` | Convert existing CSV datasets to HF Dataset format |
 | `scripts/download_from_cache.py` | Download audio + spectrograms from raw OrcaHello cache, organized by moderation category |
+| `scripts/summarize_dataset.py` | Generate dataset summary stats (label distribution, audio duration, confidence, location/month breakdowns) |
 
 ## HF Dataset Schemas
 
@@ -164,12 +164,11 @@ ModelDevelopment/
 │       ├── segment_dataset/       # From process_dataset.py --build-segment-dataset
 │       ├── audio/                 # Downloaded audio (if --download)
 │       │   └── YYYY-MM/audio/{detection_id}.flac
+│       ├── inference_results/     # Output from run_inference.py
+│       │   ├── summary.csv
+│       │   ├── results.txt        # From evaluate.py
+│       │   └── roc_curve.png
 │       └── *--complete.csv        # Only if --export-csv
-├── inference_results/             # Output from run_inference.py
-│   └── {period}--{version}/
-│       ├── summary.csv
-│       ├── results.txt            # From evaluate.py
-│       └── roc_curve.png
 └── detection_downloads/           # Output from download_from_cache.py
     └── YYYY-MM/
         ├── positive/
@@ -197,4 +196,4 @@ Sampling is per-location, then concatenated when `--location all`:
 
 - All download scripts are idempotent — existing files are skipped.
 - The `recording_dataset/` is cached and reused across runs. Use `--force` to rebuild.
-- `inference_results/` contains pre-existing results for model versions v0 and v1.2 across late 2025 – early 2026 months.
+- Each dataset directory contains its own `inference_results/` with pre-existing results.

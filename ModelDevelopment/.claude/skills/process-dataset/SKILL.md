@@ -9,7 +9,7 @@ Run model inference on a dataset's audio, then post-process: merge confidences a
 
 ARGUMENTS format: `<dataset_dir> [output_dir] [--build-segment-dataset] [--num-proc N]`
 - `dataset_dir`: path to the dataset directory (e.g. `datasets/2024-07_2025-06--all`) — must contain `recording_dataset/` and `audio/` with downloaded FLAC files
-- `output_dir`: optional inference results output dir (default: `inference_results/<dataset_name>`)
+- `output_dir`: optional inference results output dir (default: `<dataset_dir>/inference_results/`)
 - `--build-segment-dataset`: optional flag to also produce a segment-level HF Dataset
 - `--num-proc N`: optional number of parallel processes (default: cpu count)
 
@@ -20,7 +20,7 @@ Steps:
 **1. Run inference (skip if checkpoint exists)**
 
 Derive `<DATASET_NAME>` from `basename(dataset_dir)` (e.g. `2020-07_2021-06--all`).
-Set `<OUTPUT_DIR>` = `inference_results/<DATASET_NAME>` (or user-specified output_dir).
+Set `<OUTPUT_DIR>` = `<dataset_dir>/inference_results` (or user-specified output_dir).
 
 Check if `<OUTPUT_DIR>/summary.csv` already exists. If it does, log "Inference already complete, skipping to post-processing" and go to step 2.
 
