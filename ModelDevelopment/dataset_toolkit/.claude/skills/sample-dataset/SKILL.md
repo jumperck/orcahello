@@ -18,7 +18,7 @@ Run in the ModelDevelopment uv venv:
 ```bash
 cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment
 
-.venv/bin/python scripts/sample_dataset.py \
+dataset_toolkit/.venv/bin/python dataset_toolkit/scripts/sample_dataset.py \
   --dataset-dir <dataset_dir> \
   [options]
 ```

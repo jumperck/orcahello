@@ -18,7 +18,7 @@ from dataset_toolkit.hf_dataset import build_recording_dataset
 from dataset_toolkit.models import LINK_TEMPLATE
 from dataset_toolkit.utils import build_complete_df, expand_months
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DEFAULT_LOGBOOK_DIR = BASE_DIR / "combined_logbook"
 DEFAULT_CACHE_DIR = BASE_DIR / "fetch_cache" / "orcahello"
 OUTPUT_DIR = BASE_DIR / "datasets"

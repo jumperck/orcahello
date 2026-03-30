@@ -45,7 +45,7 @@ cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment && \
 
 ```bash
 cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment && \
-.venv/bin/python scripts/process_dataset.py \
+dataset_toolkit/.venv/bin/python dataset_toolkit/scripts/process_dataset.py \
   --dataset-dir <dataset_dir> \
   --inference-dir <OUTPUT_DIR> \
   [--build-segment-dataset] \

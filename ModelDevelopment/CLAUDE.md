@@ -11,19 +11,19 @@ Datasets are stored as **HuggingFace Datasets** (Arrow-backed) as the primary fo
 ## Setup
 
 ```bash
-cd ModelDevelopment
+cd ModelDevelopment/dataset_toolkit
 uv sync
 source .venv/bin/activate
 ```
 
-All scripts should be run from this directory using `.venv/bin/python` or after activating the venv.
+All scripts should be run from the `ModelDevelopment/` directory using `dataset_toolkit/.venv/bin/python` or after activating the venv.
 
 ## Typical Workflow
 
 ### 1. Create a dataset
 
 ```bash
-python scripts/create_dataset.py \
+python dataset_toolkit/scripts/create_dataset.py \
   --months 2025-07:2025-09 \
   --location all \
   --logbook-dir /path/to/orcadata/orcareports/combined_logbook \
@@ -40,7 +40,7 @@ Add `--export-csv` to also write a flat `*--complete.csv` for backward compatibi
 ### 2. (Optional) Sample from dataset
 
 ```bash
-python scripts/sample_dataset.py \
+python dataset_toolkit/scripts/sample_dataset.py \
   --dataset-dir datasets/2025-07_2025-09--all/
 ```
 
@@ -61,7 +61,7 @@ This produces per-file JSON results and a `summary.csv`. See that script's docst
 ### 4. (Optional) Post-process: add segment annotations
 
 ```bash
-python scripts/process_dataset.py \
+python dataset_toolkit/scripts/process_dataset.py \
   --dataset-dir datasets/2025-07_2025-09--all/
 ```
 
@@ -72,7 +72,7 @@ Add `--build-segment-dataset` to also produce a `segment_dataset/` with individu
 ### 5. Evaluate
 
 ```bash
-python scripts/evaluate.py \
+python dataset_toolkit/scripts/evaluate.py \
   --ground-truth detection_downloads/2025-11/ground_truth_labels.csv \
   --predictions datasets/2025-11--all/inference_results/summary.csv \
   --output-dir datasets/2025-11--all/inference_results/
@@ -83,7 +83,7 @@ Outputs `results.txt` (AUROC, operating points, hard examples) and `roc_curve.pn
 ### 6. Convert existing CSV datasets to HF format
 
 ```bash
-python scripts/convert_to_hf.py \
+python dataset_toolkit/scripts/convert_to_hf.py \
   --complete-csv datasets/2025-07_2026-02--all/2025-07_2026-02--all--complete.csv \
   --audio-dir datasets/2025-07_2026-02--all/audio/ \
   --segmented-csv datasets/2025-07_2026-02--all/2025-07_2026-02--all--complete-segmented.csv
@@ -99,35 +99,39 @@ Auto-labeling (segment-level labels from 60s files) and finetuning are not yet i
 
 ```
 ModelDevelopment/
-├── dataset_toolkit/                           # Shared modules
-│   ├── models.py                  # Pydantic schemas (RecordingRow, SegmentRow, Tag, etc.)
-│   ├── hf_dataset.py              # HF Features definitions + dataset builders
-│   ├── utils.py                   # Logbook/cache loading, month expansion, build_complete_df
-│   ├── sampling.py                # Bias-sampling logic (hard + uniform)
-│   ├── download.py                # HTTP utils + download orchestration
-│   └── segmentation.py            # Otsu thresholding / auto-segment (library only)
-├── scripts/                       # CLI entry points
-│   ├── create_dataset.py          # Build recording-level HF Dataset + optional audio download
-│   ├── sample_dataset.py          # Bias-sample from a recording dataset
-│   ├── process_dataset.py         # Add segment annotations + update confidence scores
-│   ├── evaluate.py                # ROC evaluation
-│   ├── convert_to_hf.py           # Convert existing CSV datasets to HF format
-│   └── download_from_cache.py     # Download from raw OrcaHello cache
-├── pyproject.toml
-└── CLAUDE.md
+├── dataset_toolkit/                           # Self-contained toolkit
+│   ├── pyproject.toml
+│   ├── dataset_toolkit/                       # Library modules
+│   │   ├── models.py              # Pydantic schemas (RecordingRow, SegmentRow, Tag, etc.)
+│   │   ├── hf_dataset.py          # HF Features definitions + dataset builders
+│   │   ├── utils.py               # Logbook/cache loading, month expansion, build_complete_df
+│   │   ├── sampling.py            # Bias-sampling logic (hard + uniform)
+│   │   ├── download.py            # HTTP utils + download orchestration
+│   │   └── segmentation.py        # Otsu thresholding / auto-segment (library only)
+│   └── scripts/                               # CLI entry points
+│       ├── create_dataset.py      # Build recording-level HF Dataset + optional audio download
+│       ├── sample_dataset.py      # Bias-sample from a recording dataset
+│       ├── process_dataset.py     # Add segment annotations + update confidence scores
+│       ├── evaluate.py            # ROC evaluation
+│       ├── convert_to_hf.py       # Convert existing CSV datasets to HF format
+│       ├── download_from_cache.py # Download from raw OrcaHello cache
+│       └── summarize_dataset.py   # Generate dataset summary stats
+├── datasets/                                  # Output data
+├── CLAUDE.md
+└── README.md
 ```
 
 ## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/create_dataset.py` | Create recording-level HF Dataset from the detection logbook (+ optional `--download`, `--export-csv`) |
-| `scripts/sample_dataset.py` | Bias-sample hard + uniform examples from a recording dataset |
-| `scripts/process_dataset.py` | Post-inference: add segment annotations + update confidence in HF Dataset |
-| `scripts/evaluate.py` | Evaluate inference predictions against ground truth; outputs ROC + metrics |
-| `scripts/convert_to_hf.py` | Convert existing CSV datasets to HF Dataset format |
-| `scripts/download_from_cache.py` | Download audio + spectrograms from raw OrcaHello cache, organized by moderation category |
-| `scripts/summarize_dataset.py` | Generate dataset summary stats (label distribution, audio duration, confidence, location/month breakdowns) |
+| `dataset_toolkit/scripts/create_dataset.py` | Create recording-level HF Dataset from the detection logbook (+ optional `--download`, `--export-csv`) |
+| `dataset_toolkit/scripts/sample_dataset.py` | Bias-sample hard + uniform examples from a recording dataset |
+| `dataset_toolkit/scripts/process_dataset.py` | Post-inference: add segment annotations + update confidence in HF Dataset |
+| `dataset_toolkit/scripts/evaluate.py` | Evaluate inference predictions against ground truth; outputs ROC + metrics |
+| `dataset_toolkit/scripts/convert_to_hf.py` | Convert existing CSV datasets to HF Dataset format |
+| `dataset_toolkit/scripts/download_from_cache.py` | Download audio + spectrograms from raw OrcaHello cache, organized by moderation category |
+| `dataset_toolkit/scripts/summarize_dataset.py` | Generate dataset summary stats (label distribution, audio duration, confidence, location/month breakdowns) |
 
 ## HF Dataset Schemas
 
@@ -184,7 +188,7 @@ The scripts expect external data directories passed as arguments (not hardcoded)
 - `--logbook-dir`: `combined_logbook/` from the orcareports pipeline — contains `detections/all_detections.csv` and `hourly_events/all_hourly_events.csv`
 - `--cache-dir`: `fetch_cache/orcahello/` from the orcareports pipeline — contains `{YYYY-MM}/raw_detections.json` with audio/spectrogram URIs
 
-## Sampling Strategy (`scripts/sample_dataset.py`)
+## Sampling Strategy (`dataset_toolkit/scripts/sample_dataset.py`)
 
 Sampling is per-location, then concatenated when `--location all`:
 

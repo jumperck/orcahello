@@ -36,7 +36,7 @@ summarize-dataset = "scripts.summarize_dataset:main"
 packages = ["dataset_toolkit", "scripts"]
 
 [tool.uv.sources]
-orcahello-inference = { path = "../InferenceSystem" }
+orcahello-inference = { path = "../../InferenceSystem" }
 
 [build-system]
 requires = ["hatchling"]

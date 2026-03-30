@@ -5,9 +5,9 @@ Pipeline for building labeled orca detection datasets, running model inference, 
 ## Setup
 
 ```bash
-uv venv --python 3.10
+cd dataset_toolkit
+uv sync
 source .venv/bin/activate
-uv pip install -e .
 ```
 
 **Prerequisites:** The OrcaHello fetch cache and combined logbook must be populated — these are produced by `fetch_orcahello.py` and `preprocess_detections.py` in the parent orcareports directory.
@@ -21,7 +21,7 @@ uv pip install -e .
 Build a complete CSV of all detections for a time range:
 
 ```bash
-python scripts/create_dataset.py \
+python dataset_toolkit/scripts/create_dataset.py \
   --months 2025-07:2025-09 \
   --location all \
   --logbook-dir /path/to/combined_logbook \
@@ -43,7 +43,7 @@ python scripts/create_dataset.py \
 Bias-sample a working subset from the complete CSV:
 
 ```bash
-python scripts/sample_dataset.py \
+python dataset_toolkit/scripts/sample_dataset.py \
   datasets/2025-07_2025-09--all/2025-07_2025-09--all--complete.csv
 ```
 
@@ -76,7 +76,7 @@ See `../InferenceSystem/scripts/run_inference.py` for full usage.
 Merge inference confidences into the complete CSV and produce segment-level rows:
 
 ```bash
-python scripts/process_dataset.py \
+python dataset_toolkit/scripts/process_dataset.py \
   --complete-csv datasets/2025-07_2025-09--all/2025-07_2025-09--all--complete.csv \
   --inference-dir inference_results/2025-07_2025-09--all/
 ```
@@ -90,7 +90,7 @@ python scripts/process_dataset.py \
 Evaluate inference results against ground truth labels:
 
 ```bash
-python scripts/evaluate.py \
+python dataset_toolkit/scripts/evaluate.py \
   --ground-truth datasets/2025-07_2025-09--all/2025-07_2025-09--all--sampled.csv \
   --predictions inference_results/2025-07_2025-09--all/summary.csv \
   --output-dir inference_results/2025-07_2025-09--all/
@@ -133,7 +133,7 @@ inference_results/
 Download audio and spectrograms directly from the OrcaHello cache, organized by moderation status. Useful for building datasets without going through `create_dataset.py`:
 
 ```bash
-python scripts/download_from_cache.py \
+python dataset_toolkit/scripts/download_from_cache.py \
   --months 2025-01:2025-11 \
   --category positive --category false_positive \
   --output-dir detection_downloads/

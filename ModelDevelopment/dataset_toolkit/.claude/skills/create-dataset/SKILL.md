@@ -21,7 +21,7 @@ Run in the ModelDevelopment uv venv:
 ```bash
 cd /Users/Akash/SideProjects/ai4orcas/orcahello/ModelDevelopment
 
-.venv/bin/python scripts/create_dataset.py \
+dataset_toolkit/.venv/bin/python dataset_toolkit/scripts/create_dataset.py \
   --months <months> \
   --location <location> \
   --logbook-dir /Users/Akash/SideProjects/ai4orcas/orcadata/orcareports/combined_logbook \
