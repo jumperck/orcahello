@@ -9,14 +9,27 @@ namespace NotificationSystem.Template
     // TODO: we should move all html out of code and maybe use a preset email template for better design. 
     public static class EmailTemplate
     {
-        public static string GetModeratorEmailBody(DateTime? timestamp, string location)
+        public static string GetModeratorEmailBody(DateTime? timestamp, string category, string location)
         {
-            return $"<html><head><style>{GetCSS()}</style></head><body>{GetModeratorEmailHtml(timestamp, location)}</body></html>";
+            return $"<html><head><style>{GetCSS()}</style></head><body>{GetModeratorEmailHtml(timestamp, category, location)}</body></html>";
         }
 
-        public static string GetSubscriberEmailBody(JObject message, OrcasiteHelper orcasiteHelper = null)
+        public static string GetSubscriberEmailBody(JObject message, string category, OrcasiteHelper orcasiteHelper = null)
         {
-            return $"<html><head><style>{GetCSS()}</style></head><body>{GetSubscriberEmailHtml(message, orcasiteHelper)}</body></html>";
+            return $"<html><head><style>{GetCSS()}</style></head><body>{GetSubscriberEmailHtml(message, category, orcasiteHelper)}</body></html>";
+        }
+
+        public static string GetCategory(string? comments)
+        {
+            if (comments?.Contains("transient") == true)
+            {
+                return "Transient Killer Whale";
+            }
+            if (comments?.Contains("humpback") == true)
+            {
+                return "Humpback";
+            }
+            return "Southern Resident Killer Whale";
         }
 
         public static string GetLocation(JObject message)
@@ -33,12 +46,17 @@ namespace NotificationSystem.Template
             }
         }
 
-        public static string GetSubscriberEmailSubject(string location)
+        public static string GetModeratorEmailSubject(string category, string location)
         {
-            return $"Notification: Orca detected at location {(string.IsNullOrEmpty(location) ? "Unknown" : location)}";
+            return $"{category} Candidate at location {(string.IsNullOrEmpty(location) ? "Unknown" : location)}";
         }
 
-        private static string GetSubscriberEmailHtml(JObject message, OrcasiteHelper orcasiteHelper)
+        public static string GetSubscriberEmailSubject(string category, string location)
+        {
+            return $"Notification: {category} detected at location {(string.IsNullOrEmpty(location) ? "Unknown" : location)}";
+        }
+
+        private static string GetSubscriberEmailHtml(JObject message, string category, OrcasiteHelper orcasiteHelper)
         {
             string timeString = GetPDTTimestring((DateTime?) message["timestamp"]);
 
@@ -46,10 +64,10 @@ namespace NotificationSystem.Template
                 <body>
                 <div class='card'>
                 <h1>
-                Southern Resident Killer Whale Detected
+                {category} Detected
                 </h1>
                 <p>
-                Dear subscriber, a Southern Resident Killer Whale was most recently detected at around {timeString} PDT. 
+                Dear subscriber, a {category} was most recently detected at around {timeString} PDT. 
                 </p>
                 <p>
                 Please be mindful of their presence when travelling in the areas below.
@@ -113,7 +131,7 @@ namespace NotificationSystem.Template
             return $"https://orcanotificationstorage.blob.core.windows.net/images/{slug}.jpg";
         }
 
-        private static string GetModeratorEmailHtml(DateTime? timestamp, string location)
+        private static string GetModeratorEmailHtml(DateTime? timestamp, string category, string location)
         {
             string timeString = GetPDTTimestring(timestamp);
 
@@ -121,13 +139,13 @@ namespace NotificationSystem.Template
                 <body>
                 <div class='card'>
                 <h1>
-                Orca Call Candidate
+                {category} Call Candidate
                 </h1>
                 <p>
-                Dear moderator, a potential Southern Resident Killer Whale call was detected on {timeString} PDT at {location} location. 
+                Dear moderator, a potential {category} call was detected on {timeString} PDT at {location} location. 
                 </p>
                 <p>
-                This is a request for your moderation to confirm whether the sound was produced by Southern Resident Killer Whale on the portal below.
+                This is a request for your moderation to confirm whether the sound was produced by a {category} on the portal below.
                 </p>
                 <hr/>
                 <h2>
