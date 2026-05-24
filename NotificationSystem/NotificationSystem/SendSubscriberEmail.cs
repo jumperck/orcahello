@@ -99,8 +99,6 @@ namespace NotificationSystem
 
         private string CreateBody(JObject messageJson, string category)
         {
-            var bodyBuilder = new StringBuilder($"<h1>Confirmed {category} detections:</h1>\n<ul>");
-
             return EmailTemplate.GetSubscriberEmailBody(messageJson, category, _orcasiteHelper);
         }
     }

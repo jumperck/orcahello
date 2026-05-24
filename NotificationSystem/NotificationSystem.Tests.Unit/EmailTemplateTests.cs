@@ -334,10 +334,10 @@ namespace NotificationSystem.Tests.Unit
         }
 
         /// <summary>
-        /// Tests that GetModeratorEmailBody formats timestamp to PDT correctly.
+        /// Tests that GetModeratorEmailBody formats timestamp to Pacific correctly.
         /// </summary>
         [Fact]
-        public void GetModeratorEmailBody_FormatsTimestampToPDT()
+        public void GetModeratorEmailBody_FormatsTimestampToPacific()
         {
             // Arrange
             var testTimestamp = new DateTime(2025, 1, 15, 18, 30, 0, DateTimeKind.Utc); // 6:30 PM UTC
@@ -349,7 +349,7 @@ namespace NotificationSystem.Tests.Unit
 
             // Assert
             // UTC 18:30 converts to PST 10:30 (UTC-8 during standard time)
-            Assert.Contains("PDT", emailBody);
+            Assert.Contains("Pacific", emailBody);
             // Verify the date is present
             Assert.Contains("1/15/2025", emailBody);
         }

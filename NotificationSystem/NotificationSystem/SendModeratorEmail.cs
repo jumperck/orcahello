@@ -12,7 +12,6 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.Web;
 
 namespace NotificationSystem
 {
@@ -57,7 +56,8 @@ namespace NotificationSystem
                     newDocumentCreated = true;
                     documentTimeStamp = document.GetProperty("timestamp").GetDateTime();
                     location = document.GetProperty("location").GetProperty("name").GetString();
-                    comments = document.GetProperty("comments").GetString();
+                    document.TryGetProperty("comments", out var commentsElement);
+                    comments = commentsElement.ValueKind != JsonValueKind.Null ? commentsElement.GetString() : null;
                 }
             }
 

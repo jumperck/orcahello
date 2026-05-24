@@ -6,7 +6,7 @@ using System.Text;
 
 namespace NotificationSystem.Template
 {
-    // TODO: we should move all html out of code and maybe use a preset email template for better design. 
+    // TODO: we should move all html out of code and maybe use a preset email template for better design.
     public static class EmailTemplate
     {
         public static string GetModeratorEmailBody(DateTime? timestamp, string category, string location)
@@ -58,7 +58,7 @@ namespace NotificationSystem.Template
 
         private static string GetSubscriberEmailHtml(JObject message, string category, OrcasiteHelper orcasiteHelper)
         {
-            string timeString = GetPDTTimestring((DateTime?) message["timestamp"]);
+            string timeString = GetPacificTimestring((DateTime?) message["timestamp"]);
 
             return $@"
                 <body>
@@ -67,7 +67,7 @@ namespace NotificationSystem.Template
                 {category} Detected
                 </h1>
                 <p>
-                Dear subscriber, a {category} was most recently detected at around {timeString} PDT. 
+                Dear subscriber, a {category} was most recently detected at around {timeString} Pacific.
                 </p>
                 <p>
                 Please be mindful of their presence when travelling in the areas below.
@@ -93,7 +93,7 @@ namespace NotificationSystem.Template
 
         private static string GetDetectedSectionHtml(JObject message, OrcasiteHelper orcasiteHelper)
         {
-            string timeString = GetPDTTimestring((DateTime?)message["timestamp"]);
+            string timeString = GetPacificTimestring((DateTime?)message["timestamp"]);
 
             return $@"
                   <tr>
@@ -121,19 +121,19 @@ namespace NotificationSystem.Template
         {
             // Try to get the slug from OrcasiteHelper first
             string slug = orcasiteHelper?.GetSlugByLocationName(locationName);
-            
+
             if (string.IsNullOrEmpty(slug))
             {
                 // Fall back to converting location name to lowercase and replacing spaces with hyphens
                 slug = locationName.ToLower().Replace(" ", "-");
             }
-            
+
             return $"https://orcanotificationstorage.blob.core.windows.net/images/{slug}.jpg";
         }
 
         private static string GetModeratorEmailHtml(DateTime? timestamp, string category, string location)
         {
-            string timeString = GetPDTTimestring(timestamp);
+            string timeString = GetPacificTimestring(timestamp);
 
             return $@"
                 <body>
@@ -142,7 +142,7 @@ namespace NotificationSystem.Template
                 {category} Call Candidate
                 </h1>
                 <p>
-                Dear moderator, a potential {category} call was detected on {timeString} PDT at {location} location. 
+                Dear moderator, a potential {category} call was detected on {timeString} Pacific at {location} location.
                 </p>
                 <p>
                 This is a request for your moderation to confirm whether the sound was produced by a {category} on the portal below.
@@ -152,7 +152,7 @@ namespace NotificationSystem.Template
                 Orca Moderation Portal
                 </h2>
                 <p>
-                Please click the link below to move to the portal. 
+                Please click the link below to move to the portal.
                 </p>
                 <a href='https://aifororcas.azurewebsites.net/' class='button-link'>
                 Go to portal
@@ -209,7 +209,7 @@ namespace NotificationSystem.Template
             ";
         }
 
-        private static string GetPDTTimestring(DateTime? timestamp)
+        private static string GetPacificTimestring(DateTime? timestamp)
         {
             var pacificTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
             return timestamp != null ? (TimeZoneInfo.ConvertTimeFromUtc(timestamp.Value, pacificTimeZone).ToShortDateString() + " " + TimeZoneInfo.ConvertTimeFromUtc(timestamp.Value, pacificTimeZone).ToLongTimeString()) : "unknown time";
