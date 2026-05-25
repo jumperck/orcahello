@@ -56,8 +56,10 @@ namespace NotificationSystem
                     newDocumentCreated = true;
                     documentTimeStamp = document.GetProperty("timestamp").GetDateTime();
                     location = document.GetProperty("location").GetProperty("name").GetString();
-                    document.TryGetProperty("comments", out var commentsElement);
-                    comments = commentsElement.ValueKind != JsonValueKind.Null ? commentsElement.GetString() : null;
+                    comments = document.TryGetProperty("comments", out var commentsElement) &&
+                        commentsElement.ValueKind == JsonValueKind.String
+                        ? commentsElement.GetString()
+                        : null;
                 }
             }
 
