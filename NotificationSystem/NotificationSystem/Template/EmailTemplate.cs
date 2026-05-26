@@ -35,7 +35,6 @@ namespace NotificationSystem.Template
         public static string GetLocation(JObject message)
         {
             // Extract location from first message
-            string location = null;
             try
             {
                 return message["location"]?["name"]?.ToString();
