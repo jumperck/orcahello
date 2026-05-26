@@ -23,7 +23,7 @@ namespace NotificationSystem.Tests.Unit
         [InlineData("North San Juan Channel", "north-sjc.jpg")]
         [InlineData("Point Robinson", "point-robinson.jpg")]
         [InlineData("Bush Point", "bush-point.jpg")]
-        [InlineData("Haro Strait", "haro-strait.jpg")]
+        [InlineData("Andrews Bay", "andrews-bay.jpg")]
         [InlineData("Port Townsend", "port-townsend.jpg")]
         [InlineData("Orcasound Lab", "orcasound-lab.jpg")]
         public void GetSubscriberEmailBody_GeneratesCorrectMapUri_ForLocationName(string locationName, string expectedFileName)
