@@ -45,8 +45,9 @@ namespace NotificationSystem
             foreach (var message in messages)
             {
                 string location = EmailTemplate.GetLocation(message);
-                string emailSubject = EmailTemplate.GetSubscriberEmailSubject(location);
-                string body = CreateBody(message);
+                string category = "Southern Resident Killer Whale";
+                string emailSubject = EmailTemplate.GetSubscriberEmailSubject(category, location);
+                string body = CreateBody(message, category);
                 foreach (var emailEntity in subscribers)
                 {
                     await timeConstraint;
@@ -84,31 +85,8 @@ namespace NotificationSystem
             _logger.LogInformation("Creating email message");
             List<JObject> messages = await GetMessages(queueClient);
 
-<<<<<<< HEAD
             var emailEntities = await EmailHelpers.GetEmailEntitiesAsync<SubscriberEmailEntity>(tableClient, "Subscriber");
             await ProcessMessagesAsync(messages, emailEntities);
-=======
-            var timeConstraint = TimeLimiter.GetFromMaxCountByInterval(SendRate, TimeSpan.FromSeconds(1));
-            var aws = new AmazonSimpleEmailServiceClient(RegionEndpoint.USWest2);
-            _logger.LogInformation("Retrieving email list and sending notifications");
-            foreach (var message in messages)
-            {
-                string location = EmailTemplate.GetLocation(message);
-                string category = "Southern Resident Killer Whale";
-                string emailSubject = EmailTemplate.GetSubscriberEmailSubject(category, location);
-                string body = CreateBody(message, category);
-                foreach (var emailEntity in await EmailHelpers.GetEmailEntitiesAsync<SubscriberEmailEntity>(tableClient, "Subscriber"))
-                {
-                    await timeConstraint;
-                    var email = EmailHelpers.CreateEmail(
-                        Environment.GetEnvironmentVariable("SenderEmail"),
-                        emailEntity.Email,
-                        emailSubject,
-                        body);
-                    await aws.SendEmailAsync(email);
-                }
-            }
->>>>>>> origin/pr-507
         }
 
         private async Task<List<JObject>> GetMessages(QueueClient queueClient)

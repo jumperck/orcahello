@@ -38,6 +38,7 @@ namespace NotificationSystem
             var newDocumentCreated = false;
             DateTime? documentTimeStamp = null;
             string location = null;
+            string comments = null;
 
             foreach (var document in input)
             {
@@ -47,6 +48,10 @@ namespace NotificationSystem
                     newDocumentCreated = true;
                     documentTimeStamp = document.GetProperty("timestamp").GetDateTime();
                     location = document.GetProperty("location").GetProperty("name").GetString();
+                    comments = document.TryGetProperty("comments", out var commentsElement) &&
+                        commentsElement.ValueKind == JsonValueKind.String
+                        ? commentsElement.GetString()
+                        : null;
                 }
             }
 
@@ -56,14 +61,15 @@ namespace NotificationSystem
                 return;
             }
 
-            string body = EmailTemplate.GetModeratorEmailBody(documentTimeStamp, location);
+            string category = EmailTemplate.GetCategory(comments);
+            string body = EmailTemplate.GetModeratorEmailBody(documentTimeStamp, category, location);
 
             var timeConstraint = TimeLimiter.GetFromMaxCountByInterval(SendRate, TimeSpan.FromSeconds(1));
             _logger.LogInformation("Retrieving email list and sending notifications");
             foreach (var emailEntity in emailEntities)
             {
                 await timeConstraint;
-                string emailSubject = $"OrcaHello Candidate at location {(string.IsNullOrEmpty(location) ? "Unknown" : location)}";
+                string emailSubject = EmailTemplate.GetModeratorEmailSubject(category, location);
                 var email = EmailHelpers.CreateEmail(Environment.GetEnvironmentVariable("SenderEmail"),
                     emailEntity.Email, emailSubject, body);
                 await _emailService.SendEmailAsync(email);
@@ -87,52 +93,8 @@ namespace NotificationSystem
                 return;
             }
 
-<<<<<<< HEAD
             var emailEntities = await EmailHelpers.GetEmailEntitiesAsync<ModeratorEmailEntity>(tableClient, "Moderator");
             await ProcessDocumentsAsync(input, emailEntities);
-=======
-            var newDocumentCreated = false;
-            DateTime? documentTimeStamp = null;
-            string location = null;
-            string comments = null;
-
-            foreach (var document in input)
-            {
-                // Check whether the "reviewed" property exists.
-                JsonElement reviewed = document.GetProperty("reviewed");
-                if (reviewed.ValueKind != JsonValueKind.True)
-                {
-                    newDocumentCreated = true;
-                    documentTimeStamp = document.GetProperty("timestamp").GetDateTime();
-                    location = document.GetProperty("location").GetProperty("name").GetString();
-                    comments = document.TryGetProperty("comments", out var commentsElement) &&
-                        commentsElement.ValueKind == JsonValueKind.String
-                        ? commentsElement.GetString()
-                        : null;
-                }
-            }
-
-            if (!newDocumentCreated)
-            {
-                _logger.LogInformation("No unreviewed records");
-                return;
-            }
-
-            string category = EmailTemplate.GetCategory(comments);
-            string body = EmailTemplate.GetModeratorEmailBody(documentTimeStamp, category, location);
-
-            var timeConstraint = TimeLimiter.GetFromMaxCountByInterval(SendRate, TimeSpan.FromSeconds(1));
-            var aws = new AmazonSimpleEmailServiceClient(RegionEndpoint.USWest2);
-            _logger.LogInformation("Retrieving email list and sending notifications");
-            foreach (var emailEntity in await EmailHelpers.GetEmailEntitiesAsync<ModeratorEmailEntity>(tableClient, "Moderator"))
-            {
-                await timeConstraint;
-                string emailSubject = EmailTemplate.GetModeratorEmailSubject(category, location);
-                var email = EmailHelpers.CreateEmail(Environment.GetEnvironmentVariable("SenderEmail"),
-                    emailEntity.Email, emailSubject, body);
-                await aws.SendEmailAsync(email);
-            }
->>>>>>> origin/pr-507
         }
     }
 }
