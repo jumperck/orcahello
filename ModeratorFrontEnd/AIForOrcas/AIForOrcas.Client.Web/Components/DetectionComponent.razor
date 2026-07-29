@@ -18,10 +18,8 @@
                  aria-labelledby="dropdownMenuLink">
                 <a class="dropdown-item"
                    href="@LinkUrl"
-                   data-toggle="modal"
-                   data-target="#@ModalSpectrogramPanelId"
-                   @onclick="(()=>InitializeModalPlayer())"
-                   @onclick:preventDefault>View Spectrogram Details</a>
+                   data-regions="@RegionsJson"
+                   onclick="return OpenSpectrogramModal(event, '#@ModalSpectrogramPanelId', '@Detection.Id', '@Detection.AudioUri', this.dataset.regions)">View Spectrogram Details</a>
                 <a class="dropdown-item"
                    href="#@ModalMapPanelId"
                    data-toggle="modal"
@@ -182,10 +180,8 @@
         <a href="@LinkUrl"
            role="button"
            class="btn btn-outline-success"
-           data-toggle="modal"
-           data-target="#@ModalSpectrogramPanelId"
-           @onclick="(()=>InitializeModalPlayer())"
-           @onclick:preventDefault><i class="fas fa-wave-square pr-2" aria-hidden="true"></i>Details</a>
+           data-regions="@RegionsJson"
+           onclick="return OpenSpectrogramModal(event, '#@ModalSpectrogramPanelId', '@Detection.Id', '@Detection.AudioUri', this.dataset.regions)"><i class="fas fa-wave-square pr-2" aria-hidden="true"></i>Details</a>
 
         <a href="#@ModalMapPanelId"
            role="button"

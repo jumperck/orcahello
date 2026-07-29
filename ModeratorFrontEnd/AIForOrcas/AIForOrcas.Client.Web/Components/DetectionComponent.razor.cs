@@ -106,28 +106,36 @@ public partial class DetectionComponent
 		await JSRuntime.InvokeVoidAsync("ToggleModalSpectrogram");
 	}
 
+	private string RegionsJson
+	{
+		get
+		{
+			StringBuilder sb = new StringBuilder();
+			sb.Append("[");
+
+			var list = new List<string>();
+			foreach(var annotation in Detection.Annotations)
+			{
+				var entry = "{";
+				entry += $"\"start\":{annotation.StartTime}, ";
+				entry += $"\"end\":{annotation.EndTime},";
+				entry += "\"drag\": false";
+				entry += "}";
+				list.Add(entry);
+			}
+			sb.Append(string.Join(",", list));
+
+			sb.AppendLine("]");
+
+			return sb.ToString();
+		}
+	}
+
 	private async Task InitializeModalPlayer()
 	{
-		StringBuilder sb = new StringBuilder();
-		sb.Append("[");
-
-		var list = new List<string>();
-		foreach(var annotation in Detection.Annotations)
-		{
-			var entry = "{";
-			entry += $"\"start\":{annotation.StartTime}, ";
-			entry += $"\"end\":{annotation.EndTime},";
-			entry += "\"drag\": false";
-			entry += "}";
-			list.Add(entry);
-		}
-		sb.Append(string.Join(",", list));
-
-		sb.AppendLine("]");
-
 		await JSRuntime.InvokeVoidAsync("DestroyActivePlayer");
-		await JSRuntime.InvokeVoidAsync("InitializeModalSpectrogram", _id, 
-			Detection.AudioUri, sb.ToString());
+		await JSRuntime.InvokeVoidAsync("InitializeModalSpectrogram", _id,
+			Detection.AudioUri, RegionsJson);
 	}
 
 	private async Task InitializeModalMap()
