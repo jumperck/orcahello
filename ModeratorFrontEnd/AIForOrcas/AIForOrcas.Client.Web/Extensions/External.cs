@@ -4,7 +4,6 @@ public static class External
 {
     public static void ConfigureExternalUtilities(this WebApplicationBuilder builder, AppSettings appSettings)
     {
-        builder.Services.AddBlazoredLocalStorage();
         builder.Services.AddBlazoredToast();
 
         builder.Services.AddBlazoradeMsal((sp, o) =>

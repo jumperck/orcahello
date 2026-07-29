@@ -9,7 +9,6 @@ global using AIForOrcas.DTO.API.Tags;
 global using Blazorade.Msal.Configuration;
 global using Blazorade.Msal.Security;
 global using Blazorade.Msal.Services;
-global using Blazored.LocalStorage;
 global using Blazored.Toast;
 global using Blazored.Toast.Services;
 global using Microsoft.AspNetCore.Builder;

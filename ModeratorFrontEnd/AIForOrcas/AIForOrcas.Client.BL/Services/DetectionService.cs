@@ -11,13 +11,15 @@ namespace AIForOrcas.Client.BL.Services
 {
 	public class DetectionService : IDetectionService
 	{
-		private readonly HttpClient httpClient;
 		private string api = "api/detections";
 		private JsonSerializerOptions defaultJsonSerializerOptions => new JsonSerializerOptions() { PropertyNameCaseInsensitive = true };
+		private readonly IHttpClientFactory _httpClientFactory;
+		private readonly IAuthTokenProvider _authTokenProvider;
 
-		public DetectionService(HttpClient httpClient)
+		public DetectionService(IHttpClientFactory httpClientFactory, IAuthTokenProvider authTokenProvider)
 		{
-			this.httpClient = httpClient;
+			_httpClientFactory = httpClientFactory;
+			_authTokenProvider = authTokenProvider;
 		}
 
 		// Get detections based on passed view, pagination options, and filter options
@@ -26,6 +28,8 @@ namespace AIForOrcas.Client.BL.Services
 			var prefix = api.Contains("?") ? $"{api}/{viewName}&" : $"{api}/{viewName}?";
 			var url = $"{prefix}{paginationOptions.QueryString}&{filterOptions.QueryString}";
 
+			// Create client on-demand from the current scope.
+			var httpClient = _httpClientFactory.CreateClient("UnauthenticatedAPI");
 			var httpResponseMessage = await httpClient.GetAsync(url);
 
 			if (httpResponseMessage.IsSuccessStatusCode)
@@ -76,15 +80,29 @@ namespace AIForOrcas.Client.BL.Services
 			var dataJson = JsonSerializer.Serialize(request);
 			var stringContent = new StringContent(dataJson, Encoding.UTF8, "application/json");
 
-			// TODO: Catch authentication issues
+			var httpClient = _httpClientFactory.CreateClient("AuthenticatedAPI");
+			var httpRequest = new HttpRequestMessage(HttpMethod.Put, url) { Content = stringContent };
 
-			var httpResponseMessage = await httpClient.PutAsync(url, stringContent);
+			_authTokenProvider.ApplyToken(httpRequest);
+
+			var httpResponseMessage = await httpClient.SendAsync(httpRequest);
+
+			if (!httpResponseMessage.IsSuccessStatusCode)
+			{
+				var errorContent = await httpResponseMessage.Content.ReadAsStringAsync();
+				var statusCode = (int)httpResponseMessage.StatusCode;
+
+				throw new HttpRequestException(
+					$"Failed to update detection. Status: {statusCode} {httpResponseMessage.ReasonPhrase}. Details: {errorContent}");
+			}
 		}
 
 		public async Task<Detection> GetDetectionAsync(string id)
 		{
 			var url = $"{api}/{id}";
 
+			// Create client on-demand from the current scope.
+			var httpClient = _httpClientFactory.CreateClient("UnauthenticatedAPI");
 			var httpResponseMessage = await httpClient.GetAsync(url);
 
 			if (httpResponseMessage.IsSuccessStatusCode)

@@ -8,13 +8,13 @@ namespace AIForOrcas.Client.BL.Services
 {
 	public class MetricsService : IMetricsService
 	{
-		private readonly HttpClient httpClient;
+		private readonly IHttpClientFactory _httpClientFactory;
 		private string api = "api/metrics";
 		private JsonSerializerOptions defaultJsonSerializerOptions => new JsonSerializerOptions() { PropertyNameCaseInsensitive = true };
 
-		public MetricsService(HttpClient httpClient)
+		public MetricsService(IHttpClientFactory httpClientFactory)
 		{
-			this.httpClient = httpClient;
+			_httpClientFactory = httpClientFactory;
 		}
 
 		public async Task<ModeratorMetrics> GetModeratorMetricsAsync(IFilterOptions filterOptions)
@@ -22,6 +22,7 @@ namespace AIForOrcas.Client.BL.Services
 			var prefix = api.Contains("?") ? $"{api}/moderator&" : $"{api}/moderator?";
 			var url = $"{prefix}{filterOptions.QueryString}";
 
+			var httpClient = _httpClientFactory.CreateClient("UnauthenticatedAPI");
 			var httpResponseMessage = await httpClient.GetAsync(url);
 
 			if (httpResponseMessage.IsSuccessStatusCode)
@@ -47,6 +48,7 @@ namespace AIForOrcas.Client.BL.Services
 			var prefix = api.Contains("?") ? $"{api}/system&" : $"{api}/system?";
 			var url = $"{prefix}{filterOptions.QueryString}";
 
+			var httpClient = _httpClientFactory.CreateClient("UnauthenticatedAPI");
 			var httpResponseMessage = await httpClient.GetAsync(url);
 
 			if (httpResponseMessage.IsSuccessStatusCode)

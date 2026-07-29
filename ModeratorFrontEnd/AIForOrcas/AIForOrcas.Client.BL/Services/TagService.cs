@@ -11,18 +11,21 @@ namespace AIForOrcas.Client.BL.Services
 {
     public class TagService : ITagService
     {
-		private readonly HttpClient httpClient;
+		private readonly IHttpClientFactory _httpClientFactory;
+		private readonly IAuthTokenProvider _authTokenProvider;
 		private string api = "api/tags";
 		private JsonSerializerOptions defaultJsonSerializerOptions => new JsonSerializerOptions() { PropertyNameCaseInsensitive = true };
 
-		public TagService(HttpClient httpClient)
+		public TagService(IHttpClientFactory httpClientFactory, IAuthTokenProvider authTokenProvider)
 		{
-			this.httpClient = httpClient;
+			_httpClientFactory = httpClientFactory;
+			_authTokenProvider = authTokenProvider;
 		}
 
 		// Get the list of unique tags
 		public async Task<List<string>> GetUniqueTagsAsync()
 		{
+			var httpClient = _httpClientFactory.CreateClient("UnauthenticatedAPI");
 			var httpResponseMessage = await httpClient.GetAsync(api);
 
 			if (httpResponseMessage.IsSuccessStatusCode)
@@ -46,7 +49,12 @@ namespace AIForOrcas.Client.BL.Services
 			var dataJson = JsonSerializer.Serialize(payload);
 			var stringContent = new StringContent(dataJson, Encoding.UTF8, "application/json");
 
-			var httpResponseMessage = await httpClient.PutAsync(api, stringContent);
+			var httpClient = _httpClientFactory.CreateClient("AuthenticatedAPI");
+			var httpRequest = new HttpRequestMessage(HttpMethod.Put, api) { Content = stringContent };
+
+			_authTokenProvider.ApplyToken(httpRequest);
+
+			var httpResponseMessage = await httpClient.SendAsync(httpRequest);
 
 			if (httpResponseMessage.IsSuccessStatusCode)
 			{
@@ -68,7 +76,12 @@ namespace AIForOrcas.Client.BL.Services
 		{
 			var url = $"{api}?tag={HttpUtility.UrlEncode(tag)}";
 
-			var httpResponseMessage = await httpClient.DeleteAsync(url);
+			var httpClient = _httpClientFactory.CreateClient("AuthenticatedAPI");
+			var httpRequest = new HttpRequestMessage(HttpMethod.Delete, url);
+
+			_authTokenProvider.ApplyToken(httpRequest);
+
+			var httpResponseMessage = await httpClient.SendAsync(httpRequest);
 
 			if (httpResponseMessage.IsSuccessStatusCode)
 			{

@@ -1,24 +1,44 @@
-﻿namespace AIForOrcas.Client.Web.Extensions;
+﻿using AIForOrcas.Client.BL.Services;
+using Microsoft.AspNetCore.Components.Server.Circuits;
+
+namespace AIForOrcas.Client.Web.Extensions;
 
 public static class Services
 {
     public static void ConfigureDataServices(this WebApplicationBuilder builder)
     {
-        builder.Services.AddTransient<IDetectionService, DetectionService>();
-        builder.Services.AddTransient<IMetricsService, MetricsService>();
-        builder.Services.AddTransient<ITagService, TagService>();
-    }
+        // Register server-side token store as singleton.
+        builder.Services.AddSingleton<ITokenStore, ServerSideTokenStore>();
+        
+        // Register circuit handler.
+        builder.Services.AddScoped<CircuitHandlerService>();
+        builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CircuitHandlerService>());
 
-    public static void ConfigureWebServices(this WebApplicationBuilder builder, AppSettings appSettings)
-    {
-        if (!string.IsNullOrWhiteSpace(appSettings?.APIUrl))
+        // Register authentication provider.
+        builder.Services.AddScoped<ApiAuthenticationStateProvider>();
+        builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
+            sp.GetRequiredService<ApiAuthenticationStateProvider>());
+
+        // Register the scoped token provider that resolves the token from the active circuit.
+        builder.Services.AddScoped<IAuthTokenProvider, CircuitAuthTokenProvider>();
+
+        // Register HTTP clients with handlers.
+        builder.Services.AddHttpClient("UnauthenticatedAPI", (sp, client) =>
         {
-            builder.Services.AddScoped(sp =>
-            {
-                var client = new HttpClient();
-                client.BaseAddress = new System.Uri(appSettings.APIUrl);
-                return client;
-            });
-        }
+            var apiUrl = sp.GetRequiredService<AppSettings>().APIUrl;
+            client.BaseAddress = new Uri(apiUrl);
+        });
+
+        builder.Services.AddHttpClient("AuthenticatedAPI", (sp, client) =>
+        {
+            var apiUrl = sp.GetRequiredService<AppSettings>().APIUrl;
+            client.BaseAddress = new Uri(apiUrl);
+        });
+
+        builder.Services.AddScoped<IDetectionService, DetectionService>();
+
+        builder.Services.AddScoped<IMetricsService, MetricsService>();
+        builder.Services.AddScoped<ITagService, TagService>();
+        builder.Services.AddScoped<IAccountService, AccountService>();
     }
 }

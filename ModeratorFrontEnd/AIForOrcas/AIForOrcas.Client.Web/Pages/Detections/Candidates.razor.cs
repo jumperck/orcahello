@@ -35,6 +35,12 @@ public partial class Candidates : IDisposable
 
 		pagination.TotalNumberOfRecords = paginatedResponse.TotalNumberRecords;
 		pagination.TotalNumberOfPages = paginatedResponse.TotalAmountPages;
+
+		if (paginationOptions.Page > 1 && paginationOptions.Page > pagination.TotalNumberOfPages)
+		{
+			// We may have just removed the last page, so if so back up by one.
+			paginationOptions.Page--;
+		}
 		pagination.CurrentPage = paginationOptions.Page;
 
 		if (paginatedResponse.Response == null)
@@ -73,7 +79,6 @@ public partial class Candidates : IDisposable
 
 		ToastService.ShowSuccess("Detection successfully updated.");
 
-		paginationOptions.Page = 1;
 		await LoadDetections();
 	}
 

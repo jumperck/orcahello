@@ -18,9 +18,6 @@ builder.ConfigureModeratorPolicy(appSettings);
 // Inject data services (Extensions\Services)
 builder.ConfigureDataServices();
 
-// Inject web services (Extensions\Services)
-builder.ConfigureWebServices(appSettings);
-
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
