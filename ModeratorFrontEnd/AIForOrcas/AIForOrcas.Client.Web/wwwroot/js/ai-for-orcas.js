@@ -302,14 +302,14 @@ function CardSpectrogram(cardId, audioUrl) {
 
 // Set new default font family and font color to mimic Bootstrap's default styling
 
-function OpenSpectrogramModal(event, modalId, detectionId, audioUrl, regionsJson) {
+function OpenSpectrogramModal(event, anchor) {
 	// Ctrl/Cmd/Shift clicks open the details page in a new tab or window instead.
 	if (event.ctrlKey || event.metaKey || event.shiftKey) {
 		return true;
 	}
 
 	DestroyActivePlayer();
-	InitializeModalSpectrogram(detectionId, audioUrl, regionsJson);
-	$(modalId).modal('show');
+	InitializeModalSpectrogram(anchor.dataset.detectionId, anchor.dataset.audioUri, anchor.dataset.regions);
+	$(anchor.dataset.modalTarget).modal('show');
 	return false;
 }

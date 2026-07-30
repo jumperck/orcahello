@@ -106,30 +106,13 @@ public partial class DetectionComponent
 		await JSRuntime.InvokeVoidAsync("ToggleModalSpectrogram");
 	}
 
-	private string RegionsJson
-	{
-		get
+	private string RegionsJson =>
+		JsonSerializer.Serialize(Detection.Annotations.Select(annotation => new
 		{
-			StringBuilder sb = new StringBuilder();
-			sb.Append("[");
-
-			var list = new List<string>();
-			foreach(var annotation in Detection.Annotations)
-			{
-				var entry = "{";
-				entry += $"\"start\":{annotation.StartTime}, ";
-				entry += $"\"end\":{annotation.EndTime},";
-				entry += "\"drag\": false";
-				entry += "}";
-				list.Add(entry);
-			}
-			sb.Append(string.Join(",", list));
-
-			sb.AppendLine("]");
-
-			return sb.ToString();
-		}
-	}
+			start = annotation.StartTime,
+			end = annotation.EndTime,
+			drag = false
+		}));
 
 	private async Task InitializeModalPlayer()
 	{
