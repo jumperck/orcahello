@@ -232,7 +232,7 @@ function ToggleModalSpectrogram() {
 	}
 }
 
-function CardSpectrogram(cardId, audioUrl) {
+function CardSpectrogram(cardId, audioUrl, regionsJson) {
 
 	var containerId = 'card-' + cardId;
 
@@ -253,7 +253,12 @@ function CardSpectrogram(cardId, audioUrl) {
 			height: spectrogram.height,
 			maxCanvasWidth: spectrogram.width,
 			responsive: true,
-			fillParent: true
+			fillParent: true,
+			plugins: [
+				WaveSurfer.regions.create({
+					regions: JSON.parse(regionsJson || '[]')
+				})
+			]
 		})
 
 		wavesurfer.containerId = containerId;

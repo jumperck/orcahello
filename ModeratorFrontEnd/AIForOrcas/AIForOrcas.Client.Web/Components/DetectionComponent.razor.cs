@@ -91,7 +91,7 @@ public partial class DetectionComponent
 
 	private async Task ToggleCardPlayer()
 	{
-		await JSRuntime.InvokeVoidAsync("CardSpectrogram", _id, Detection.AudioUri);
+		await JSRuntime.InvokeVoidAsync("CardSpectrogram", _id, Detection.AudioUri, RegionsJson);
 	}
 
 	private async Task ToggleModalPlayer()
