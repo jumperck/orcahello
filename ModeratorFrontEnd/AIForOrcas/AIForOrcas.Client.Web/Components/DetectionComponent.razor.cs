@@ -68,6 +68,14 @@ public partial class DetectionComponent
 			Detection.Found = string.Empty;
 	}
 
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		// Invoked on every render because the card may not be in the DOM yet on the
+		// first render (e.g. while the single detection page is still loading the record);
+		// the JS side is idempotent and exits early once the preview exists.
+		await JSRuntime.InvokeVoidAsync("PreviewCardRegions", _id, Detection.AudioUri, RegionsJson);
+	}
+
 	private void SetFoundValue(string found)
 	{
 		Detection.Found = found;

@@ -232,9 +232,90 @@ function ToggleModalSpectrogram() {
 	}
 }
 
+/* Card Region Preview (shows detector regions on the static spectrogram before playback) */
+
+function PreviewCardRegions(cardId, audioUrl, regionsJson) {
+
+	var regions = JSON.parse(regionsJson || '[]');
+
+	if (regions.length === 0) {
+		return;
+	}
+
+	var image = document.getElementById('spectrogram-card-' + cardId);
+	var waveform = document.getElementById('waveform-card-' + cardId);
+
+	if (image === null || waveform === null || document.getElementById('regions-preview-card-' + cardId) !== null) {
+		return;
+	}
+
+	// The player draws its own regions; skip the preview while it is active on this card
+	if (wavesurfer.containerId == 'card-' + cardId) {
+		return;
+	}
+
+	// preload="metadata" fetches only the audio header, enough to know the clip duration
+	var audio = document.createElement('audio');
+	audio.preload = 'metadata';
+	audio.src = audioUrl;
+
+	audio.addEventListener('loadedmetadata', function () {
+
+		var duration = audio.duration;
+
+		if (!isFinite(duration) || duration <= 0) {
+			return;
+		}
+
+		var draw = function () {
+
+			if (wavesurfer.containerId == 'card-' + cardId || document.getElementById('regions-preview-card-' + cardId) !== null) {
+				return;
+			}
+
+			var preview = document.createElement('div');
+			preview.id = 'regions-preview-card-' + cardId;
+			preview.style.position = 'relative';
+			preview.style.height = image.clientHeight + 'px';
+
+			regions.forEach(function (region) {
+				var strip = document.createElement('div');
+				strip.className = 'wavesurfer-region';
+				strip.style.position = 'absolute';
+				strip.style.top = '0';
+				strip.style.height = '100%';
+				strip.style.left = (region.start / duration * 100) + '%';
+				strip.style.width = ((region.end - region.start) / duration * 100) + '%';
+				strip.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+				preview.appendChild(strip);
+			});
+
+			waveform.parentElement.insertBefore(preview, waveform);
+		};
+
+		if (image.complete) {
+			draw();
+		}
+		else {
+			image.addEventListener('load', draw, { once: true });
+		}
+	});
+}
+
+function RemoveCardRegionPreview(cardId) {
+
+	var preview = document.getElementById('regions-preview-card-' + cardId);
+
+	if (preview !== null) {
+		preview.remove();
+	}
+}
+
 function CardSpectrogram(cardId, audioUrl, regionsJson) {
 
 	var containerId = 'card-' + cardId;
+
+	RemoveCardRegionPreview(cardId);
 
 	if (wavesurfer.container != undefined && wavesurfer.containerId != containerId) {
 		DestroyActivePlayer();
