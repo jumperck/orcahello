@@ -120,7 +120,8 @@ public partial class DetectionComponent
 			start = annotation.StartTime,
 			end = annotation.EndTime,
 			drag = false,
-			resize = false
+			resize = false,
+			color = "rgba(255, 255, 255, 0.1)"
 		}));
 
 	private async Task InitializeModalPlayer()

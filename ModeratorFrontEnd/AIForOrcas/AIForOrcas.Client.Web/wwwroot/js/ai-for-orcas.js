@@ -286,7 +286,7 @@ function PreviewCardRegions(cardId, audioUrl, regionsJson) {
 				strip.style.height = '100%';
 				strip.style.left = (region.start / duration * 100) + '%';
 				strip.style.width = ((region.end - region.start) / duration * 100) + '%';
-				strip.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+				strip.style.backgroundColor = region.color;
 				preview.appendChild(strip);
 			});
 
