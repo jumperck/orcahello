@@ -111,7 +111,8 @@ public partial class DetectionComponent
 		{
 			start = annotation.StartTime,
 			end = annotation.EndTime,
-			drag = false
+			drag = false,
+			resize = false
 		}));
 
 	private async Task InitializeModalPlayer()
